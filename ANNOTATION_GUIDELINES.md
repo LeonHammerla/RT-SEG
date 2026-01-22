@@ -36,13 +36,13 @@ Use the following functions as guidance for identifying boundaries.
 You **do not need to label them**, only decide whether the function changes.
 
 1. **Assumption / Setup**  
-   Introducing premises, constraints, or known facts.
+   Introducing premises, constraints, or known facts. [Grounds, Backing, Warrant]
 
 2. **Intermediate Inference**  
-   Deriving new information from prior content.
+   Deriving new information from prior content. [Claim]
 
 3. **Contrast / Objection**  
-   Introducing alternatives, counterarguments, or limitations.
+   Introducing alternatives, counterarguments, or limitations. [Rebuttal, Qualifier]
 
 4. **Revision / Correction**  
    Retracting, correcting, or reconsidering earlier reasoning.
@@ -135,6 +135,18 @@ Defines:
   author={Toulmin, Stephen E},
   year={2003},
   publisher={Cambridge university press}
+}
+```
+and
+```bibtex
+@article{karbach1987using,
+  title={Using Toulmin's model of argumentation},
+  author={Karbach, Joan},
+  journal={Journal of Teaching Writing},
+  volume={6},
+  number={1},
+  pages={81--92},
+  year={1987}
 }
 ```
 #### Example 2: Stede (2011) — Argumentation mining
