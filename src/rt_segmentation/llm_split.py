@@ -200,8 +200,8 @@ class RTLLMBased:
                 del all_segments[-1]
 
 
-        if i < len(strace):
-            all_segments.append((i, len(strace)))
+        if max(all_segments[-1]) < len(strace) - 1:
+            all_segments.append([sid for sid in range(max(all_segments[-1]), len(strace) - 1)])
 
         final_offsets = []
         print(all_segments)
