@@ -1,9 +1,11 @@
+import copy
 import json
 import os
 import random
+import time
 from collections import Counter
 from functools import lru_cache
-from typing import List, Dict
+from typing import List, Dict, Tuple, Literal
 from datasets import load_dataset
 import torch
 from datasets import Dataset, concatenate_datasets
@@ -186,7 +188,7 @@ class RTRuleBased:
                 db.insert_relation("has_rule_split", {"in": res.get("id"), "out": split_id})
 
 
-class RTQwen2_5Based:
+class RTLLMBased:
     SYSTEM_PROMPT = """You are a text segmentation assistant.
 
 Your task is to segment an input text into contiguous reasoning segments and return only their character offsets.
@@ -218,9 +220,12 @@ Return only a JSON array of offset pairs, nothing else:
     PROMPT = "Segment the following text into reasoning segments according to the system instructions.\n\nTEXT TO SEGMENT (use exact character positions and return the offsets in json format):"
     @staticmethod
     @lru_cache(maxsize=1)
-    def load_model():
-        model_name = "Qwen/Qwen2.5-7B-Instruct-1M"
+    def load_model(model_name: Literal[
+                    "Qwen/Qwen2.5-7B-Instruct-1M",
+                    "mistralai/Mixtral-8x7B-Instruct-v0.1",
+                    "Qwen/Qwen2.5-7B-Instruct"]):
 
+        # if model_name == "Qwen/Qwen2.5-7B-Instruct-1M" or model_name == "Qwen/Qwen2.5-7B-Instruct":
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype="auto",
@@ -230,8 +235,21 @@ Return only a JSON array of offset pairs, nothing else:
         return model, tokenizer
 
     @staticmethod
-    def qwen2_5_segment(trace: str, prompt: str, system_prompt: str):
-        model, tokenizer = RTQwen2_5Based.load_model()
+    def chunks(s: str, n: int) -> list[str]:
+        if n <= 0:
+            raise ValueError("Chunk length must be positive")
+        return [s[i:i + n] for i in range(0, len(s), n)]
+
+    @staticmethod
+    def _segment(trace: str,
+                 prompt: str,
+                 system_prompt: str,
+                 model_name: Literal[
+                     "Qwen/Qwen2.5-7B-Instruct-1M",
+                     "mistralai/Mixtral-8x7B-Instruct-v0.1",
+                     "Qwen/Qwen2.5-7B-Instruct"]
+                 ):
+        model, tokenizer = RTLLMBased.load_model(model_name)
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"{prompt}\n\n{trace}"}
@@ -253,6 +271,96 @@ Return only a JSON array of offset pairs, nothing else:
 
         response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
         return response
+
+    @staticmethod
+    def segment_with_chunk_retry(
+            trace: str,
+            chunk_size: int,
+            prompt: str,
+            system_prompt: str,
+            model_name: Literal[
+                "Qwen/Qwen2.5-7B-Instruct-1M",
+                "mistralai/Mixtral-8x7B-Instruct-v0.1",
+                "Qwen/Qwen2.5-7B-Instruct"],
+            margin: int = 200,
+            max_retries_per_chunk: int = 10,
+    ) -> List[Tuple[int, int]]:
+        """
+        Segments a long trace using chunking + retry-on-incomplete-coverage.
+
+        Returns global character offsets.
+        """
+
+        all_segments: List[Tuple[int, int]] = []
+        carryover = ""
+
+        i = 0
+        while i < len(trace):
+            # Build chunk with carryover
+            base_chunk = trace[i:i + chunk_size]
+            chunk = carryover + base_chunk
+            chunk_start_global = i - len(carryover)
+
+            cursor = 0
+            retries = 0
+
+            while retries < max_retries_per_chunk:
+                retries += 1
+
+                sub_chunk = chunk[cursor:]
+                if not sub_chunk.strip():
+                    break
+
+                response = RTLLMBased._segment(sub_chunk, prompt, system_prompt, model_name)
+                try:
+                    local_segments = json.loads(response)
+                except Exception:
+                    # Model produced garbage → stop this chunk
+                    break
+                # print(local_segments)
+                if not local_segments:
+                    break
+
+                # Convert to chunk-relative offsets
+                shifted = []
+                for start, end in local_segments:
+                    shifted.append((start + cursor, end + cursor))
+
+                # Append globalized offsets
+                for start, end in shifted:
+                    global_start = chunk_start_global + start
+                    global_end = chunk_start_global + end
+
+                    # Ensure monotonicity
+                    if all_segments and global_start < all_segments[-1][1]:
+                        continue
+
+                    all_segments.append((global_start, global_end))
+
+                last_end = shifted[-1][1]
+
+                # If close enough to chunk end, stop retrying
+                if len(chunk) - last_end <= margin:
+                    cursor = last_end
+                    break
+
+                # Otherwise continue from last boundary
+                cursor = last_end
+
+            # Prepare carryover for next chunk
+            carryover = chunk[cursor:]
+            i += chunk_size
+
+        print(all_segments)
+        """# Final safety: ensure full coverage
+        if all_segments:
+            last_end = all_segments[-1][1]
+            if last_end < len(trace):
+                all_segments.append((last_end, len(trace)))"""
+
+        return all_segments
+
+
 
 
 if __name__ == "__main__":
@@ -293,7 +401,7 @@ But wait, let me make sure there are no other divisors. For example, if b +7 is 
 
 Therefore, the final answer is 70. Let me check if that's correct. Yes, seems right."""
 
-    res = RTNewLine.paragraph_ranges_regex(trace)
+    """res = RTNewLine.paragraph_ranges_regex(trace)
     print(res)
     for idx, r in enumerate(res):
         print(trace[r[0]:r[1]])
@@ -301,11 +409,19 @@ Therefore, the final answer is 70. Let me check if that's correct. Yes, seems ri
     res = RTRuleBased.sentence_spans(trace)
     print(res)
     for idx, r in enumerate(res):
-        print(trace[r[0]:r[1]])
-
-    res = RTQwen2_5Based.qwen2_5_segment(trace, RTQwen2_5Based.PROMPT, RTQwen2_5Based.SYSTEM_PROMPT)
+        print(trace[r[0]:r[1]])"""
+    s = time.time()
+    res = RTLLMBased.segment_with_chunk_retry(trace=trace,
+                                              chunk_size=400,
+                                              prompt=RTLLMBased.PROMPT,
+                                              system_prompt=RTLLMBased.SYSTEM_PROMPT,
+                                              model_name="mistralai/Mixtral-8x7B-Instruct-v0.1",
+                                              margin=100,
+                                              max_retries_per_chunk=10)
+    e = time.time()
     print(res)
-    for idx, r in enumerate(res):
-        print(trace[r[0]:r[1]])
+    print(e-s)
+    """for idx, r in enumerate(res):
+        print(trace[r[0]:r[1]])"""
 
 

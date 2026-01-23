@@ -7,3 +7,4 @@ numpy
 transformers
 surrealdb
 scikit-learn
+accelerate
