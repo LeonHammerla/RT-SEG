@@ -12,5 +12,5 @@ Please ensure the `sdb_login.json` file is located in the `/data/` directory wit
   "pwd": "", 
   "ns": "NR",
   "db": "RT",
-  "url": "ws://domain"
+  "url": "wss://domain"
 }
