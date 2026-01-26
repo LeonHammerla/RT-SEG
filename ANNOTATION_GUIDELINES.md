@@ -217,7 +217,7 @@ Defines:
 ### Recent LLM / reasoning trace–adjacent work
 
 Justify:
-- Introduces reasoning traces as explicit text objects.
+- Introduces reasoning traces as explicit text objects, and suggests segmentations etc.
 
 #### Example 1: Wei et al. (2022) — Chain-of-Thought
 Defines:
@@ -231,6 +231,36 @@ Defines:
       archivePrefix={arXiv},
       primaryClass={cs.CL},
       url={https://arxiv.org/abs/2201.11903}, 
+}
+```
+
+#### Example 2: REASONINGFLOW: Semantic Structure of Complex Reasoning Traces
+Defines:
+- Introduces flow based segmentation with labels and edges (text segments as nodes in DAG)
+```bibtex
+@misc{lee2025reasoningflowsemanticstructurecomplex,
+      title={ReasoningFlow: Semantic Structure of Complex Reasoning Traces}, 
+      author={Jinu Lee and Sagnik Mukherjee and Dilek Hakkani-Tur and Julia Hockenmaier},
+      year={2025},
+      eprint={2506.02532},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2506.02532}, 
+}
+```
+
+#### Example 3: The Geometry of Reasoning: Flowing Logics in Representation Space
+Defines:
+- Introduces flow based segmentation with labels
+```bibtex
+@misc{zhou2025geometryreasoningflowinglogics,
+      title={The Geometry of Reasoning: Flowing Logics in Representation Space}, 
+      author={Yufa Zhou and Yixiao Wang and Xunjian Yin and Shuyan Zhou and Anru R. Zhang},
+      year={2025},
+      eprint={2510.09782},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2510.09782}, 
 }
 ```
 ---
