@@ -388,7 +388,8 @@ class RTLLMForcedDecoderBased:
                     "Qwen/Qwen2.5-7B-Instruct-1M",
                     "mistralai/Mixtral-8x7B-Instruct-v0.1",
                     "Qwen/Qwen2.5-7B-Instruct"],
-                   special_token: str = "<|seg|>"):
+                   special_token: str = "<|seg|>"
+                   ):
 
         # if model_name == "Qwen/Qwen2.5-7B-Instruct-1M" or model_name == "Qwen/Qwen2.5-7B-Instruct":
         model = AutoModelForCausalLM.from_pretrained(
@@ -445,14 +446,20 @@ class RTLLMForcedDecoderBased:
                     max_kv_tokens: int = 512,
                     alpha: float = 1.0,
                     beta: float = 1.5,
-                    quantile: float = 90.0):
+                    quantile: float = 90.0,
+                    sep_tok: str = "<|seg|>"):
         """
         First pass: compute normalized "gap" scores for separator insertion.
         """
-        model, tokenizer = RTLLMForcedDecoderBased.load_model(model_name, special_token="<|seg|>")
+        model, tokenizer = RTLLMForcedDecoderBased.load_model(model_name,
+                                                              special_token=sep_tok
+                                                              )
         model.eval()
-
-        sep_id = tokenizer.get_vocab()["<|seg|>"]
+        sep_ids = []
+        for s in ("Step", " Step", sep_tok):
+            ids = tokenizer.encode(s, add_special_tokens=False)
+            if len(ids) == 1:
+                sep_ids.append(ids[0])
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -491,7 +498,7 @@ class RTLLMForcedDecoderBased:
                 sep_bias = 0.0
 
             true_logp = log_probs[true_id]
-            sep_logp = log_probs[sep_id]
+            sep_logp = torch.max(log_probs[sep_ids])
 
             # FLIP: gap > 0 → separator more likely
             gap = sep_logp - true_logp
@@ -528,13 +535,21 @@ class RTLLMForcedDecoderBased:
                       gap_std: float,
                       max_kv_tokens: int = 512,
                       alpha: float = 1.0,
-                      beta: float = 1.5):
+                      beta: float = 1.5,
+                      sep_tok: str = "<|seg|>"):
         """
         Second pass: perform segmentation using computed threshold.
         """
-        model, tokenizer = RTLLMForcedDecoderBased.load_model(model_name, special_token="<|seg|>")
+        model, tokenizer = RTLLMForcedDecoderBased.load_model(model_name,
+                                                              special_token=sep_tok
+                                                              )
         model.eval()
-        sep_id = tokenizer.get_vocab()["<|seg|>"]
+        sep_id = tokenizer.get_vocab().get("<|seg|>")
+        sep_ids = []
+        for s in ("Step", " Step", sep_tok):
+            ids = tokenizer.encode(s, add_special_tokens=False)
+            if len(ids) == 1:
+                sep_ids.append(ids[0])
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -572,7 +587,7 @@ class RTLLMForcedDecoderBased:
                 sep_bias = 0.0
 
             true_logp = log_probs[true_id]
-            sep_logp = log_probs[sep_id]
+            sep_logp = torch.max(log_probs[sep_ids])
 
             gap_z = (sep_logp - true_logp - gap_mean) / gap_std
             score = alpha * gap_z + beta * sep_bias
@@ -609,14 +624,16 @@ class RTLLMForcedDecoderBased:
                  max_kv_tokens: int = 512,
                     alpha: float = 1.0,
                     beta: float = 2,
-                    quantile: float = 90.0):
+                    quantile: float = 90.0,
+                 sep_tok: str = "<|seg|>"):
         threshold, gap_mean, gap_std = RTLLMForcedDecoderBased._trace_pass(trace=trace,
                                                                            system_prompt=system_prompt,
                                                                            model_name=model_name,
                                                                            max_kv_tokens=max_kv_tokens,
                                                                            alpha=alpha,
                                                                            beta=beta,
-                                                                           quantile=quantile)
+                                                                           quantile=quantile,
+                                                                           sep_tok=sep_tok)
         print(threshold, gap_mean, gap_std)
         return RTLLMForcedDecoderBased._segment_pass(trace=trace,
                                                      system_prompt=system_prompt,
@@ -626,4 +643,5 @@ class RTLLMForcedDecoderBased:
                                                      gap_std=gap_std,
                                                      max_kv_tokens=max_kv_tokens,
                                                      alpha=alpha,
-                                                     beta=beta)
+                                                     beta=beta,
+                                                     sep_tok=sep_tok)
