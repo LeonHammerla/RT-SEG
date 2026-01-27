@@ -31,7 +31,7 @@ def test():
 
 def test2():
     offsets = RTLLMForcedDecoderBased._segment(trace=load_example_trace("trc1"),
-                                               system_prompt=load_prompt("system_prompt_sentbased"),
+                                               system_prompt=load_prompt("system_prompt_forceddecoder"),
                                                model_name="Qwen/Qwen2.5-7B-Instruct")
     print(offsets)
     for ofs in offsets:

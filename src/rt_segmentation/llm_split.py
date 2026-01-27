@@ -565,7 +565,7 @@ class RTLLMForcedDecoderBased:
         boundaries = [0]
         past_key_values = None
         trace_ptr = 0
-
+        last_tokid = None
         # initial prompt
         with torch.no_grad():
             out = model(input_ids=input_ids, past_key_values=past_key_values, use_cache=True)
@@ -582,7 +582,7 @@ class RTLLMForcedDecoderBased:
             if last_char in RTLLMForcedDecoderBased.PUNCTUATION:
                 sep_bias = 1.0
             elif last_char in RTLLMForcedDecoderBased.SOFT_PUNCTUATION:
-                sep_bias = 0.5
+                sep_bias = 0.2
             else:
                 sep_bias = 0.0
 
@@ -592,17 +592,19 @@ class RTLLMForcedDecoderBased:
             gap_z = (sep_logp - true_logp - gap_mean) / gap_std
             score = alpha * gap_z + beta * sep_bias
 
-            print(true_logp, sep_logp, score, threshold)
-            if score > threshold:
+            # print(true_logp, sep_logp, score, threshold)
+            if (not true_id in sep_ids) and (score > threshold) and (last_tokid != sep_id):
                 # insert boundary
                 boundaries.append(char_cursor)
                 next_id = torch.tensor([[sep_id]], device=model.device)
+                last_tokid = sep_id
             else:
                 next_id = torch.tensor([[true_id]], device=model.device)
                 token_text = tokenizer.decode([true_id], skip_special_tokens=False)
                 decoded_so_far += token_text
                 char_cursor += len(token_text)
                 trace_ptr += 1
+                last_tokid = true_id
 
             with torch.no_grad():
                 out = model(input_ids=next_id, past_key_values=past_key_values, use_cache=True)
@@ -611,6 +613,7 @@ class RTLLMForcedDecoderBased:
                     past_key_values = RTLLMForcedDecoderBased.truncate_kv_dynamic(past_key_values, max_kv_tokens)
 
         boundaries.append(len(trace))
+        print(boundaries)
         segments = [(a, b) for a, b in zip(boundaries[:-1], boundaries[1:]) if a < b]
         return segments
 
@@ -634,7 +637,7 @@ class RTLLMForcedDecoderBased:
                                                                            beta=beta,
                                                                            quantile=quantile,
                                                                            sep_tok=sep_tok)
-        print(threshold, gap_mean, gap_std)
+        # print(threshold, gap_mean, gap_std)
         return RTLLMForcedDecoderBased._segment_pass(trace=trace,
                                                      system_prompt=system_prompt,
                                                      model_name=model_name,
