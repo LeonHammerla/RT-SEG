@@ -25,7 +25,7 @@ from .seg_base import SegBase
 from .seg_utils import bp, sdb_login, load_prompt, load_example_trace
 
 
-class RTLLMEntropy(SegBase):
+class RTLLMFlatnessBreak(SegBase):
     PUNCTUATION = {".", "!", "?", "\n"}
     SOFT_PUNCTUATION = {",", "\t", ";", ":"}
 
@@ -76,11 +76,11 @@ class RTLLMEntropy(SegBase):
                     window: int = 6,
                     quantile: int = 1):
         """
-        First pass: compute normalized "gap" scores for separator insertion.
+        First pass: detect segmentation boundaries using flatness-break in surprisal.
         """
-        model, tokenizer = RTLLMEntropy.load_model(model_name
-                                                              )
+        model, tokenizer = RTLLMFlatnessBreak.load_model(model_name)
         model.eval()
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": trace},
@@ -94,71 +94,90 @@ class RTLLMEntropy(SegBase):
         past_key_values = None
         trace_ptr = 0
 
-        # initial prompt forward
+        # forward prompt
         with torch.no_grad():
             out = model(input_ids=input_ids, past_key_values=past_key_values, use_cache=True)
             past_key_values = out.past_key_values
             if past_key_values is not None:
-                past_key_values = RTLLMEntropy.truncate_kv_dynamic(past_key_values, max_kv_tokens)
+                past_key_values = RTLLMFlatnessBreak.truncate_kv_dynamic(past_key_values, max_kv_tokens)
 
-        scores = []
+        surprisal = []
         while trace_ptr < len(trace_ids):
             logits = out.logits[0, -1]
-            probs = torch.softmax(logits, dim=-1)
+            log_probs = torch.log_softmax(logits, dim=-1)
             true_id = trace_ids[trace_ptr]
-            entropy = -torch.sum(probs * torch.log(probs + 1e-12))
-            scores.append(entropy.item())
-            # force true token
+            true_logp = log_probs[true_id]
+            surprisal.append(-true_logp.item())
+
+            # force token
             next_id = torch.tensor([[true_id]], device=model.device)
             decoded_so_far += tokenizer.decode([true_id], skip_special_tokens=False)
             trace_ptr += 1
 
-            # forward step
             with torch.no_grad():
                 out = model(input_ids=next_id, past_key_values=past_key_values, use_cache=True)
                 past_key_values = out.past_key_values
                 if past_key_values is not None:
-                    past_key_values = RTLLMEntropy.truncate_kv_dynamic(past_key_values, max_kv_tokens)
+                    past_key_values = RTLLMFlatnessBreak.truncate_kv_dynamic(past_key_values, max_kv_tokens)
 
-        assert len(trace_ids) == len(scores)
-        deltas = []
-        punc_ids = [tokenizer.get_vocab().get(p) for p in RTLLMEntropy.PUNCTUATION]
-        for idx in range(window, len(scores) - window):
-            prev = np.mean(scores[idx - window:idx])
-            nex = np.mean(scores[idx:idx + window])
-            if trace_ids[idx - 1] in punc_ids:
-                deltas.append(nex - prev)
+        # --- FLATNESS BREAK DETECTION ---
+        surprisal = np.array(surprisal)
+        punc_ids = [tokenizer.get_vocab().get(p) for p in RTLLMFlatnessBreak.PUNCTUATION]
 
-        delta_z = (np.array(deltas) - np.mean(deltas)) / (np.std(deltas) + 1e-6)
-        threshold = np.percentile(delta_z, q=quantile)
+        # rolling mean and variance
+        mean_window = window
+        flatness_scores = []
+        for i in range(mean_window, len(surprisal) - mean_window):
+            # previous window
+            prev_window = surprisal[i - mean_window:i]
+            next_window = surprisal[i:i + mean_window]
+
+            # compute mean and variance shift
+            mean_prev = np.mean(prev_window)
+            mean_next = np.mean(next_window)
+            var_prev = np.var(prev_window)
+            var_next = np.var(next_window)
+
+            # score: large shift in mean relative to prior std
+            score = ((mean_next - mean_prev) / (np.sqrt(var_prev + 1e-6)))
+            # can also include variance increase if desired:
+            # score += (var_next - var_prev) / (var_prev + 1e-6)
+
+            # only consider sentence boundaries
+            if trace_ids[i - 1] in punc_ids:
+                flatness_scores.append(score)
+
+        flatness_scores = np.array(flatness_scores)
+        score_mean = flatness_scores.mean()
+        score_std = flatness_scores.std() + 1e-6
+        flatness_z = (flatness_scores - score_mean) / score_std
+        threshold = np.percentile(flatness_z, q=quantile)
+
+        # --- SECOND PASS: SEGMENTATION ---
         decoded_so_far = ""
         char_cursor = 0
         boundaries = [0]
         trace_ptr = 0
         idx, jdx = 0, 0
         last_split_sentence_idx = 0
+
         while trace_ptr < len(trace_ids):
             true_id = trace_ids[trace_ptr]
-            # print(true_logp, sep_logp, score, threshold)
-            if (len(trace_ids) - window > idx >= window) and trace_ids[idx - 1] in punc_ids:
-                # d = jdx - last_split_sentence_idx
-                # multiplier = 2 - min(d / 5, 1)
-                # dynamic_threshold = threshold * multiplier
-                print(delta_z[jdx], threshold, delta_z[jdx] < threshold)
-                # print(delta_z[jdx], dynamic_threshold, delta_z[jdx] < dynamic_threshold)
-                if delta_z[jdx] < threshold:
+            token_text = tokenizer.decode([true_id], skip_special_tokens=False)
+
+            # check for boundary only at punctuation
+            if (len(trace_ids) - mean_window > idx >= mean_window) and trace_ids[idx - 1] in punc_ids:
+                if flatness_z[jdx] < threshold:
                     boundaries.append(char_cursor)
                     last_split_sentence_idx = jdx
                 jdx += 1
 
-            token_text = tokenizer.decode([true_id], skip_special_tokens=False)
             decoded_so_far += token_text
             char_cursor += len(token_text)
             trace_ptr += 1
             idx += 1
 
         boundaries.append(len(trace))
-        print(boundaries)
         segments = [(a, b) for a, b in zip(boundaries[:-1], boundaries[1:]) if a < b]
         return segments
 
@@ -170,13 +189,12 @@ class RTLLMEntropy(SegBase):
                      "mistralai/Mixtral-8x7B-Instruct-v0.1",
                      "Qwen/Qwen2.5-7B-Instruct"],
                  max_kv_tokens: int = 512,
-                    window: int = 30,
+                    window: int = 15,
                  quantile: int = 10,
                  **kwargs):
-        return RTLLMEntropy._trace_pass(trace=trace,
-                                          system_prompt=system_prompt,
-                                          model_name=model_name,
-                                          max_kv_tokens=max_kv_tokens,
-                                          window=window,
-                                          quantile=quantile)
-
+        return RTLLMFlatnessBreak._trace_pass(trace=trace,
+                                              system_prompt=system_prompt,
+                                              model_name=model_name,
+                                              max_kv_tokens=max_kv_tokens,
+                                              window=window,
+                                              quantile=quantile)

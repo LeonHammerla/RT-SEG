@@ -7,3 +7,5 @@ from .llm_split_forced_decoder import RTLLMForcedDecoderBased
 from .llm_split_surprisal import RTLLMSurprisal
 from .llm_split_entropy import RTLLMEntropy
 from .llm_split_topk import RTLLMTopKShift
+from .llm_split_flatness_break import RTLLMFlatnessBreak
+from .seg_base import SegBase

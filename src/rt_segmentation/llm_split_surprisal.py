@@ -21,9 +21,10 @@ from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer, DynamicCache
 import numpy as np
 from .seg_utils import bp, sdb_login, load_prompt, load_example_trace
+from .seg_base import SegBase
 
 
-class RTLLMSurprisal:
+class RTLLMSurprisal(SegBase):
     PUNCTUATION = {".", "!", "?", "\n"}
     SOFT_PUNCTUATION = {",", "\t", ";", ":"}
 
@@ -173,7 +174,8 @@ class RTLLMSurprisal:
                      "Qwen/Qwen2.5-7B-Instruct"],
                  max_kv_tokens: int = 512,
                     window: int = 15,
-                 quantile: int = 10):
+                 quantile: int = 10,
+                 **kwargs):
         return RTLLMSurprisal._trace_pass(trace=trace,
                                           system_prompt=system_prompt,
                                           model_name=model_name,

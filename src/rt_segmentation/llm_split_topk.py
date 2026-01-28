@@ -15,9 +15,10 @@ from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer, DynamicCache
 import numpy as np
 from .seg_utils import bp, sdb_login, load_prompt, load_example_trace
+from .seg_base import SegBase
 
 
-class RTLLMTopKShift:
+class RTLLMTopKShift(SegBase):
     PUNCTUATION = {".", "!", "?", "\n"}
     SOFT_PUNCTUATION = {",", "\t", ";", ":"}
 
@@ -178,7 +179,8 @@ class RTLLMTopKShift:
                  max_kv_tokens: int = 512,
                  top_k: int = 20,
                  window: int = 15,
-                 quantile: int = 90):
+                 quantile: int = 90,
+                 **kwargs):
         return RTLLMTopKShift._trace_pass(trace=trace,
                                           system_prompt=system_prompt,
                                           model_name=model_name,

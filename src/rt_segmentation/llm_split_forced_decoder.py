@@ -21,9 +21,10 @@ from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer, DynamicCache
 import numpy as np
 from .seg_utils import bp, sdb_login, load_prompt, load_example_trace
+from .seg_base import SegBase
 
 
-class RTLLMForcedDecoderBased:
+class RTLLMForcedDecoderBased(SegBase):
     PUNCTUATION = {".", "!", "?", ";", ":", "\n"}
     SOFT_PUNCTUATION = {",", "\t"}
 
@@ -278,7 +279,8 @@ class RTLLMForcedDecoderBased:
                     alpha: float = 1.0,
                     beta: float = 2,
                     quantile: float = 90.0,
-                 sep_tok: str = "<|seg|>"):
+                 sep_tok: str = "<|seg|>",
+                 **kwargs):
         threshold, gap_mean, gap_std = RTLLMForcedDecoderBased._trace_pass(trace=trace,
                                                                            system_prompt=system_prompt,
                                                                            model_name=model_name,

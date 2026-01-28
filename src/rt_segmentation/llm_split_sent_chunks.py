@@ -21,9 +21,10 @@ from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer, DynamicCache
 import numpy as np
 from .seg_utils import bp, sdb_login, load_prompt, load_example_trace
+from .seg_base import SegBase
 
 
-class RTLLMSentBased:
+class RTLLMSentBased(SegBase):
     @staticmethod
     @lru_cache(maxsize=1)
     def load_tokenizer():
@@ -52,7 +53,7 @@ class RTLLMSentBased:
         return [s[i:i + n] for i in range(0, len(s), n)]
 
     @staticmethod
-    def _segment(trace: str,
+    def _trace_pass(trace: str,
                  prompt: str,
                  system_prompt: str,
                  model_name: Literal[
@@ -84,7 +85,7 @@ class RTLLMSentBased:
         return response
 
     @staticmethod
-    def segment_with_sentence_chunks(
+    def _segment(
             trace: str,
             chunk_size: int,
             prompt: str,
@@ -93,7 +94,8 @@ class RTLLMSentBased:
                 "Qwen/Qwen2.5-7B-Instruct-1M",
                 "mistralai/Mixtral-8x7B-Instruct-v0.1",
                 "Qwen/Qwen2.5-7B-Instruct"],
-            max_retry: int = 30
+            max_retry: int = 30,
+            **kwargs
     ) -> List[Tuple[int, int]]:
 
         all_segments: List[Tuple[int, int]] = []
@@ -107,7 +109,7 @@ class RTLLMSentBased:
             # Build chunk with carryover (carryover is CONTEXT, not to be re-segmented)
             base_chunk = strace[i:i + chunk_size]
             base_chunk_input = json.dumps({idx: sent for idx, sent in enumerate(base_chunk)})
-            response = RTLLMSentBased._segment(
+            response = RTLLMSentBased._trace_pass(
                 base_chunk_input, "", system_prompt, model_name
             )
             # --- robust JSON parsing ---
@@ -178,38 +180,3 @@ class RTLLMSentBased:
             corrected_final_offsets.append((offset[0], final_offsets[idx + 1][0]))
         corrected_final_offsets.append(final_offsets[-1])
         return corrected_final_offsets
-
-    @staticmethod
-    def segment(wipe: bool = False):
-        login_data = sdb_login()
-        with Surreal(login_data["url"]) as db:
-            db.signin({"username": login_data["user"], "password": login_data["pwd"]})
-            db.use(login_data["ns"], login_data["db"])
-            if wipe:
-                db.query("REMOVE TABLE llm_sent_chunk_split;")
-                db.query("DEFINE TABLE llm_sent_chunk_split SCHEMALESS;")
-                db.query("DEFINE INDEX idx_llm_sent_chunk_split_id ON llm_sent_chunk_split FIELDS id;")
-
-                db.query("REMOVE TABLE has_llm_sent_chunk_split;")
-                db.query("DEFINE TABLE has_llm_sent_chunk_split SCHEMALESS TYPE RELATION IN rtrace OUT llm_sent_chunk_split;")
-                db.query("DEFINE INDEX idx_rt_id ON has_llm_sent_chunk_split FIELDS id;")
-                db.query("DEFINE INDEX idx_rt_in ON has_llm_sent_chunk_split FIELDS in;")
-                db.query("DEFINE INDEX idx_rt_out ON has_llm_sent_chunk_split FIELDS out;")
-
-            results = db.query("SELECT *, ->has_llm_sent_chunk_split->llm_sent_chunk_split.* as seg from rtrace where ->has_llm_sent_chunk_split->llm_sent_chunk_split == [] and string::len(rt) < 20000 ")
-
-            for res in tqdm(results, desc=f"Segmenting traces with LLM"):
-                rt = res.get("rt")
-                try:
-                    offsets = RTLLMSentBased.segment_with_sentence_chunks(trace=rt,
-                                                                      chunk_size=40,
-                                                                      prompt="",
-                                                                      system_prompt=load_prompt("system_prompt_sentbased"),
-                                                                      model_name="Qwen/Qwen2.5-7B-Instruct")
-                except Exception as e:
-                    print(e)
-                    continue
-
-                split_id = RecordID("llm_sent_chunk_split", res.get("id").id)
-                db.upsert(split_id, {"split": offsets})
-                db.insert_relation("has_llm_sent_chunk_split", {"in": res.get("id"), "out": split_id})
