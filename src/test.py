@@ -72,4 +72,9 @@ def test_RTLLMFlatnessBreak():
 
 
 if __name__ == "__main__":
-    pytest.main(["-v", "-s", __file__])
+    pytest.main([
+        "-v",
+        "-s",
+        "--log-cli-level=INFO",
+        __file__
+    ])
