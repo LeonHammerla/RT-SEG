@@ -8,3 +8,4 @@ transformers
 surrealdb
 scikit-learn
 accelerate
+pytest

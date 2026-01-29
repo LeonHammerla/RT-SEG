@@ -47,3 +47,7 @@ class SegBase(ABC):
                 split_id = RecordID(f"{exp_id}", res.get("id").id)
                 db.upsert(split_id, {"split": offsets})
                 db.insert_relation(f"has_{exp_id}", {"in": res.get("id"), "out": split_id})
+
+    @staticmethod
+    def return_segments():
+        pass
