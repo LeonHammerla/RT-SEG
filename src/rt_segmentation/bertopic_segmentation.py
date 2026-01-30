@@ -4,12 +4,14 @@ from typing import List
 from typing import Tuple, Literal
 
 from bertopic import BERTopic
-from cuml import UMAP, HDBSCAN
+from hdbscan import HDBSCAN
+
 from nltk.tokenize import PunktSentenceTokenizer
 from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import CountVectorizer
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from umap import UMAP
 
 from .seg_base import SegBase
 from .zeroshot_seq_classification import RTZeroShotSeqClassification
@@ -45,8 +47,7 @@ class RTBERTopicSegmentation(SegBase):
         "all-MiniLM-L6-v2",
         "Qwen/Qwen3-Embedding-0.6B",]):
         logger.info(f"Loading Dimensionality Reduction and Clustering models for BERTopic...")
-        umap_model = UMAP(n_neighbors=10, n_components=5, min_dist=0.0, metric='cosine', random_state=42,
-                          build_algo="nn_descent")
+        umap_model = UMAP(n_neighbors=10, n_components=5, min_dist=0.0, metric='cosine', random_state=42)
         hdbscan_model = HDBSCAN(min_cluster_size=20, metric='euclidean', cluster_selection_method='eom',
                                 prediction_data=True)
         vectorizer_model = CountVectorizer(stop_words="english", min_df=2, ngram_range=(1, 2))
