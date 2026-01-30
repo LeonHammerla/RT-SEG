@@ -13,6 +13,8 @@ from rt_segmentation import (RTLLMOffsetBased,
                              RTLLMSentBased,
                              RTRuleRegex,
                              RTNewLine,
+                             RTBERTopicSegmentation,
+                             RTZeroShotSeqClassification,
                              bp,
                              sdb_login,
                              load_prompt,
@@ -88,6 +90,15 @@ class InputPanel(Vertical):
                 [
                     ("Rule Based Split", "rule"),
                     ("Newline Split", "newline"),
+                    ("LLM (tok-chunk)", "offset"),
+                    ("LLM (sent-chunk)", "sent"),
+                    ("LLM Surprisal", "surprisal"),
+                    ("LLM Entropy", "entropy"),
+                    ("LLM Flatness Break", "flatness"),
+                    ("LLM TopK", "topk"),
+                    ("LLM Forced Decoder", "forced"),
+                    ("LLM Zero-Shot", "zero"),
+                    ("Topic Based", "topic"),
                 ],
                 value="rule",
                 id="method-select"
@@ -182,6 +193,16 @@ class MyApp(App):
                 trace=text,
                 system_prompt=load_prompt("system_prompt_surprisal"),
                 model_name=model_name)
+        elif selected_method == "zero":
+            offsets, seg_labels = RTZeroShotSeqClassification._segment(
+                trace=text,
+                model_name="facebook/bart-large-mnli")
+        elif selected_method == "topic":
+            offsets, seg_labels = RTBERTopicSegmentation._segment(
+                trace=text,
+                system_prompt=load_prompt("system_prompt_topic_label"),
+                model_name=model_name,
+                all_custom_labels=True)
         else:
             raise NotImplementedError(f"Method {selected_method} not implemented.")
 

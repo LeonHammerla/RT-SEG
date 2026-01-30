@@ -71,7 +71,7 @@ def test_RTLLMFlatnessBreak():
     assert isinstance(res[0], tuple) or isinstance(res[0], list)
     assert isinstance(res[0][0], int) and isinstance(res[0][1], int)
 
-def test7():
+def test_RTZeroShotSeqClassification():
     offsets, labels = RTZeroShotSeqClassification._segment(trace=load_example_trace("trc1"), model_name="facebook/bart-large-mnli")
 
     for ofs, label in zip(offsets, labels):
@@ -85,12 +85,12 @@ def test7():
     assert isinstance(offsets[0][0], int) and isinstance(offsets[0][1], int)
     assert isinstance(labels[0], str)
 
-import pytest
 
 @pytest.mark.parametrize("use_trace", ["trc1", "trc2"])
-def test_segmentation(use_trace):
+def test_RTBERTopicSegmentation(use_trace):
     trace_data = load_example_trace(use_trace)
-    offsets, labels = RTBERTopicSegmentation._segment(trace=trace_data, system_prompt=load_prompt("system_prompt_topic_label"),
+    offsets, labels = RTBERTopicSegmentation._segment(trace=trace_data,
+                                                      system_prompt=load_prompt("system_prompt_topic_label"),
                                                       model_name="Qwen/Qwen2.5-1.5B-Instruct",
                                                       all_custom_labels=True)
 
