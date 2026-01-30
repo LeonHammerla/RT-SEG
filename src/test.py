@@ -7,6 +7,7 @@ from rt_segmentation import (RTLLMOffsetBased,
                              RTBERTopicSegmentation,
                              RTEmbeddingBasedSemanticShift,
                              RTZeroShotSeqClassification,
+                             RTEntailmentBasedSegmentation,
                              RTRuleRegex,
                              RTNewLine,
                              bp,
@@ -14,7 +15,6 @@ from rt_segmentation import (RTLLMOffsetBased,
                              load_prompt,
                              load_example_trace, RTLLMSurprisal, RTLLMEntropy, RTLLMTopKShift, RTLLMFlatnessBreak,
                              export_gold_set)
-
 
 def test_RTLLMSentBased():
     res = RTLLMSentBased._segment(trace=load_example_trace("trc1"),
@@ -111,7 +111,20 @@ def test_RTBERTopicSegmentation(use_trace):
 def test_RTEmbeddingBasedSemanticShift():
     offsets, labels = RTEmbeddingBasedSemanticShift._segment(trace=load_example_trace("trc1"),
                                                              min_threshold=0.4,
-                                                             tolerance=0.20)
+                                                             tolerance=0.20
+                                                             )
+    for ofs, label in zip(offsets, labels):
+        print(50 * "=")
+        print(load_example_trace("trc1")[ofs[0]:ofs[1]])
+        print(label)
+    assert isinstance(offsets, list)
+    assert isinstance(labels, list)
+    assert isinstance(offsets[0], tuple) or isinstance(offsets[0], list)
+    assert isinstance(offsets[0][0], int) and isinstance(offsets[0][1], int)
+    assert isinstance(labels[0], str)
+
+def test_RTEntailmentBasedSegmentation():
+    offsets, labels = RTEntailmentBasedSegmentation._segment(trace=load_example_trace("trc1"))
     for ofs, label in zip(offsets, labels):
         print(50 * "=")
         print(load_example_trace("trc1")[ofs[0]:ofs[1]])
