@@ -11,7 +11,8 @@ from rt_segmentation import (RTLLMOffsetBased,
                              load_prompt,
                              load_example_trace, RTLLMSurprisal, RTLLMEntropy, RTLLMTopKShift, RTLLMFlatnessBreak,
                              export_gold_set)
-
+from src.rt_segmentation.bertopic_segmentation import RTBERTopicSegmentation
+from src.rt_segmentation.zeroshot_seq_classification import RTZeroShotSeqClassification
 
 
 def test_RTLLMSentBased():
@@ -69,6 +70,43 @@ def test_RTLLMFlatnessBreak():
     assert isinstance(res, list)
     assert isinstance(res[0], tuple) or isinstance(res[0], list)
     assert isinstance(res[0][0], int) and isinstance(res[0][1], int)
+
+def test7():
+    offsets, labels = RTZeroShotSeqClassification._segment(trace=load_example_trace("trc1"), model_name="facebook/bart-large-mnli")
+
+    for ofs, label in zip(offsets, labels):
+        print(50 * "=")
+        print(load_example_trace("trc1")[ofs[0]:ofs[1]])
+        print(label)
+
+    assert isinstance(offsets, list)
+    assert isinstance(labels, list)
+    assert isinstance(offsets[0], tuple) or isinstance(offsets[0], list)
+    assert isinstance(offsets[0][0], int) and isinstance(offsets[0][1], int)
+    assert isinstance(labels[0], str)
+
+import pytest
+
+@pytest.mark.parametrize("use_trace", ["trc1", "trc2"])
+def test_segmentation(use_trace):
+    trace_data = load_example_trace(use_trace)
+    offsets, labels = RTBERTopicSegmentation._segment(trace=trace_data, system_prompt=load_prompt("system_prompt_topic_label"),
+                                                      model_name="Qwen/Qwen2.5-1.5B-Instruct",
+                                                      all_custom_labels=True)
+
+    for ofs, label in zip(offsets, labels):
+        print(50 * "=")
+        print(trace_data[ofs[0]:ofs[1]])
+        print(label)
+
+    # Assertions
+    assert isinstance(offsets, list)
+    assert isinstance(labels, list)
+    assert isinstance(offsets[0], (tuple, list))
+    assert isinstance(offsets[0][0], int)
+    assert isinstance(offsets[0][1], int)
+    assert isinstance(labels[0], str)
+
 
 
 if __name__ == "__main__":
