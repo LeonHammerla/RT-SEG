@@ -4,6 +4,9 @@ import time
 from rt_segmentation import (RTLLMOffsetBased,
                              RTLLMForcedDecoderBased,
                              RTLLMSentBased,
+                             RTBERTopicSegmentation,
+                             RTEmbeddingBasedSemanticShift,
+                             RTZeroShotSeqClassification,
                              RTRuleRegex,
                              RTNewLine,
                              bp,
@@ -11,9 +14,6 @@ from rt_segmentation import (RTLLMOffsetBased,
                              load_prompt,
                              load_example_trace, RTLLMSurprisal, RTLLMEntropy, RTLLMTopKShift, RTLLMFlatnessBreak,
                              export_gold_set)
-from src.rt_segmentation.bertopic_segmentation import RTBERTopicSegmentation
-from src.rt_segmentation.semantic_shift import RTEmbeddingBasedSemanticShift
-from src.rt_segmentation.zeroshot_seq_classification import RTZeroShotSeqClassification
 
 
 def test_RTLLMSentBased():
