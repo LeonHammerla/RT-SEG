@@ -13,13 +13,18 @@ InputPanel {
     margin-bottom: 1;
 }
 
+#selection-container-aligner {
+    height: auto;
+    margin-bottom: 1;
+}
+
 #method-label {
     text-style: italic;
     color: $text-muted;
     margin-top: 1;
 }
 
-#method-select {
+#aligner-select {
     height: 3;
 }
 
@@ -50,4 +55,11 @@ ResultsPanel {
     margin: 1 0;
     text-style: bold;
     color: $accent;
+}
+
+#method-select {
+    height: auto;
+    max-height: 12;
+    padding: 1;
+    border: round $primary;
 }
