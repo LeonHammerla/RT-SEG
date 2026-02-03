@@ -15,3 +15,12 @@ from .zeroshot_seq_classification import RTZeroShotSeqClassification
 from .prm_split import RTPRMBase
 from .semantic_shift import RTEmbeddingBasedSemanticShift
 from .entailment import RTEntailmentBasedSegmentation
+from .seg_factory import RTSeg
+from .late_fusion import (OffsetFusionFuzzy,
+                          OffsetFusionGraph,
+                          OffsetFusionMerge,
+                          OffsetFusionVoting,
+                          OffsetFusionFlatten,
+                          OffsetFusionIntersect,
+                          OffsetFusion,
+                          LabelFusion)

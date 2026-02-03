@@ -51,19 +51,19 @@ class OffsetFusionMerge(OffsetFusion):
     @staticmethod
     def fuse(segmentations: List[List[Tuple[int, int]]],
              **kwargs):
-        boundaries = sorted(set(OffsetFusion.flatten_boundaries(segmentations)))
+        boundaries = sorted(set(OffsetFusionFlatten.fuse(segmentations)))
         return [(boundaries[i], boundaries[i + 1]) for i in range(len(boundaries) - 1)]
 
 class OffsetFusionIntersect(OffsetFusion):
     @staticmethod
     def fuse(segmentations: List[List[Tuple[int, int]]],
              **kwargs):
-        sets = [set(OffsetFusion.flatten_boundaries([seg])) for seg in segmentations]
+        sets = [set(OffsetFusionFlatten.fuse([seg])) for seg in segmentations]
         common = sorted(set.intersection(*sets))
         if common[0] != 0:
             common = [0] + common
-        if common[-1] != max(OffsetFusion.flatten_boundaries(segmentations)):
-            common.append(max(OffsetFusion.flatten_boundaries(segmentations)))
+        if common[-1] != max(OffsetFusionFlatten.fuse(segmentations)):
+            common.append(max(OffsetFusionFlatten.fuse(segmentations)))
         return [(common[i], common[i + 1]) for i in range(len(common) - 1)]
 
 class OffsetFusionFuzzy(OffsetFusion):
@@ -74,7 +74,7 @@ class OffsetFusionFuzzy(OffsetFusion):
         """
         Merge boundaries that are within max_distance characters
         """
-        all_boundaries = sorted(OffsetFusion.flatten_boundaries(segmentations))
+        all_boundaries = sorted(OffsetFusionFlatten.fuse(segmentations))
         fused_boundaries = []
         current = all_boundaries[0]
         for b in all_boundaries[1:]:
@@ -94,7 +94,7 @@ class OffsetFusionGraph(OffsetFusion):
         Treat each proposed segment as an edge with weight = number of votes.
         Return path maximizing total weight.
         """
-        all_boundaries = sorted(set(OffsetFusion.flatten_boundaries(segmentations)))
+        all_boundaries = sorted(set(OffsetFusionFlatten.fuse(segmentations)))
         # Build edges with weights
         edge_weights = {}
         for start in all_boundaries:

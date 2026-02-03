@@ -14,7 +14,8 @@ from rt_segmentation import (RTLLMOffsetBased,
                              sdb_login,
                              load_prompt,
                              load_example_trace, RTLLMSurprisal, RTLLMEntropy, RTLLMTopKShift, RTLLMFlatnessBreak,
-                             export_gold_set)
+                             export_gold_set,
+                             RTSeg, OffsetFusionGraph)
 
 def test_RTLLMSentBased():
     res = RTLLMSentBased._segment(trace=load_example_trace("trc1"),
@@ -129,6 +130,18 @@ def test_RTEntailmentBasedSegmentation():
         print(50 * "=")
         print(load_example_trace("trc1")[ofs[0]:ofs[1]])
         print(label)
+    assert isinstance(offsets, list)
+    assert isinstance(labels, list)
+    assert isinstance(offsets[0], tuple) or isinstance(offsets[0], list)
+    assert isinstance(offsets[0][0], int) and isinstance(offsets[0][1], int)
+    assert isinstance(labels[0], str)
+
+def test_FactorySegmentation():
+    rt_seg = RTSeg(engines=[RTRuleRegex, RTBERTopicSegmentation],
+                   aligner=OffsetFusionGraph)
+    offsets, labels = rt_seg(trace=load_example_trace("trc1"))
+    print(offsets)
+    print(labels)
     assert isinstance(offsets, list)
     assert isinstance(labels, list)
     assert isinstance(offsets[0], tuple) or isinstance(offsets[0], list)
