@@ -25,3 +25,4 @@ from .late_fusion import (OffsetFusionFuzzy,
                           OffsetFusion,
                           LabelFusion)
 from .llm_reasoning_flow_scheme import RTLLMReasoningFlow
+from .llm_thought_anchor_scheme import RTLLMThoughtAnchor
