@@ -15,7 +15,9 @@ from rt_segmentation import (RTLLMOffsetBased,
                              load_prompt,
                              load_example_trace, RTLLMSurprisal, RTLLMEntropy, RTLLMTopKShift, RTLLMFlatnessBreak,
                              export_gold_set,
+
                              RTSeg, OffsetFusionGraph,RTLLMReasoningFlow, RTLLMArgument)
+
 
 
 def test_RTLLMSentBased():
@@ -170,6 +172,7 @@ def test_RTLLMReasoningFlow():
     assert isinstance(offsets[0], tuple) or isinstance(offsets[0], list)
     assert isinstance(offsets[0][0], int) and isinstance(offsets[0][1], int)
     assert isinstance(labels[0], str)
+
 
 def test_RTLLMArgument():
     offsets, labels = RTLLMArgument._segment(trace=load_example_trace("trc1"),
