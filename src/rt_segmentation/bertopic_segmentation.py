@@ -158,7 +158,7 @@ class RTBERTopicSegmentation(SegBase):
 
         topic_model = RTBERTopicSegmentation.load_topic_model(embedding_model_name)
 
-        embeddings = topic_model.embedding_model.encode(documents)
+        embeddings = RTBERTopicSegmentation.load_embedding_model(embedding_model_name).encode(documents)
         topics, probs = topic_model.fit_transform(documents, embeddings)
         if all_custom_labels:
             labelling_model, tokenizer = RTBERTopicSegmentation.load_model(model_name)
