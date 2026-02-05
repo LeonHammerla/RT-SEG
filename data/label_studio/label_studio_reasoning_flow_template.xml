@@ -2,31 +2,33 @@
   <!-- Guidelines as HyperText – renders multiline + bullets perfectly -->
   <HyperText name="guidelines" value="
     &lt;div style='background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px 20px; margin-bottom:16px; font-size:14px; line-height:1.55; color:#334155;'&gt;
-      &lt;div style='margin-bottom:8px;'&gt;• Insert boundary &lt;strong&gt;between clauses&lt;/strong&gt; (never inside: one segment can consist of one to many clauses) whenever a reasoning step ends — this happens when: (1) epistemic function changes, or (2) the current step is complete / has achieved its purpose — even if the function stays the same&lt;/div&gt;
-      &lt;div style='margin-bottom:12px;'&gt;• Do &lt;strong&gt;not&lt;/strong&gt; judge correctness/logic/truth — focus only on structure; segments must be contiguous, non-overlapping and cover the entire text&lt;/div&gt;
-      &lt;div style='margin:12px 0 6px; font-weight:500; color:#475569;'&gt;Epistemic functions (insert boundary when function changes):&lt;/div&gt;
+      &lt;div style='margin-bottom:8px;'&gt;• Insert boundary &lt;strong&gt;between clauses&lt;/strong&gt; (never inside) whenever a reasoning step ends — this happens when: (1) semantic type changes, or (2) the current step is complete even if the function stays the same.&lt;/div&gt;
+      &lt;div style='margin-bottom:12px;'&gt;• Do &lt;strong&gt;not&lt;/strong&gt; judge correctness — focus on structure; segments must be contiguous, non-overlapping, and cover the entire text.&lt;/div&gt;
+      &lt;div style='margin:12px 0 6px; font-weight:500; color:#475569;'&gt;Semantic types (insert boundary when type changes):&lt;/div&gt;
 
-      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Problem Setup&lt;/strong&gt; — Parsing or rephrasing the problem&lt;/div&gt;
-      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Plan Generation&lt;/strong&gt; — Stating or deciding on a plan of action, meta-reasoning&lt;/div&gt;
-      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Fact Retrieval&lt;/strong&gt; — Recalling facts, formulas, problem details without computation&lt;/div&gt;
-      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Active Computation&lt;/strong&gt; — Algebra, calculations, or other manipulations toward the answer&lt;/div&gt;
-      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Uncertainty Management&lt;/strong&gt; — Expressing confusion, re-evaluating, including backtracking&lt;/div&gt;
-      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Result Consolidation&lt;/strong&gt; — Aggregating intermediate results, summarizing, or preparing&lt;/div&gt;
-      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Self Checking&lt;/strong&gt; — Verifying previous steps, checking calculations, and re-confirmations&lt;/div&gt;
-      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Final Answer Emission&lt;/strong&gt; — Explicitly stating the final answer&lt;/div&gt;
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Context&lt;/strong&gt; — Text provided before the first generated token (questions, retrieved docs).&lt;/div&gt;
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Planning&lt;/strong&gt; — High-level directions or local specific plans (e.g., 'Let’s simplify').&lt;/div&gt;
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Fact&lt;/strong&gt; — External knowledge (theorems, trivia, constants) not deduced from the problem.&lt;/div&gt;
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Reasoning&lt;/strong&gt; — Deductive/inductive inference, applying facts to rules, or simplifying equations.&lt;/div&gt;
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Restatement&lt;/strong&gt; — Rephrasing preceding text (e.g., 'As seen previously').&lt;/div&gt;
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Assumption&lt;/strong&gt; — Proposing conditions for further reasoning, branching, or proof by contradiction.&lt;/div&gt;
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Example&lt;/strong&gt; — Specific cases used for pattern finding or illustration of general concepts.&lt;/div&gt;
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Reflection&lt;/strong&gt; — Clauses expressing confidence, feelings, impressions, or doubt.&lt;/div&gt;
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Conclusion&lt;/strong&gt; — The final answer emission (typically a single consecutive set).&lt;/div&gt;
     &lt;/div&gt;
   "/>
 
   <!-- Fixed labels (always visible) -->
   <HyperTextLabels name="ner" toName="content" choice="single" showInline="true">
-    <Label value="Problem Setup" background="lightblue"/>
-    <Label value="Plan Generation" background="lightgreen"/>
-    <Label value="Fact Retrieval" background="orange"/>
-    <Label value="Active Computation" background="pink"/>
-    <Label value="Uncertainty Management" background="lightgray"/>
-    <Label value="Result Consolidation" background="red"/>
-    <Label value="Self Checking" background="blue"/>
-    <Label value="Final Answer Emission" background="purple"/>
+    <Label value="Context" background="lightblue"/>
+    <Label value="Planning" background="lightgreen"/>
+    <Label value="Fact" background="orange"/>
+    <Label value="Reasoning" background="pink"/>
+    <Label value="Restatement" background="lightgray"/>
+    <Label value="Assumption" background="red"/>
+    <Label value="Example" background="blue"/>
+    <Label value="Reflection" background="purple"/>
+    <Label value="Conclusion" background="teal"/>
   </HyperTextLabels>
 
   <!-- Scrollable sentences area (reduced height slightly to fit guidelines) -->
