@@ -97,13 +97,14 @@ def export_gold_set():
                     tries += 1
                     max_len += 10000
 
-    for model in tqdm([f"human_stage{idx}" for idx in range(1, 5)], desc="Exporting human set"):
-        with Surreal(login_data["url"]) as db:
-            db.signin({"username": login_data["user"], "password": login_data["pwd"]})
-            db.use(login_data["ns"], login_data["db"])
-            res = db.query(
-                f'SELECT rt, id, ds_origin, model from rtrace where string::len(rt) < 20000 and model="{model}" and ds_origin="nemo"')
-            target = random.choice(res)
+    model = f"human_stage1"
+    with Surreal(login_data["url"]) as db:
+        db.signin({"username": login_data["user"], "password": login_data["pwd"]})
+        db.use(login_data["ns"], login_data["db"])
+        res = db.query(
+            f'SELECT rt, id, ds_origin, model from rtrace where string::len(rt) < 20000 and model="{model}" and ds_origin="nemo"')
+        targets = random.sample(res, 4)
+        for target in targets:
             ds.append(export_rt(target.get("rt"), target.get("id").id, model, "nemo"))
 
     print(len(ds), len(missing))

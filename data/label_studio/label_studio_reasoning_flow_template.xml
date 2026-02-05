@@ -1,0 +1,41 @@
+<View>
+  <!-- Guidelines as HyperText – renders multiline + bullets perfectly -->
+  <HyperText name="guidelines" value="
+    &lt;div style='background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px 20px; margin-bottom:16px; font-size:14px; line-height:1.55; color:#334155;'&gt;
+      &lt;div style='margin-bottom:8px;'&gt;• Insert boundary &lt;strong&gt;between clauses&lt;/strong&gt; (never inside: one segment can consist of one to many clauses) whenever a reasoning step ends — this happens when: (1) epistemic function changes, or (2) the current step is complete / has achieved its purpose — even if the function stays the same&lt;/div&gt;
+      &lt;div style='margin-bottom:12px;'&gt;• Do &lt;strong&gt;not&lt;/strong&gt; judge correctness/logic/truth — focus only on structure; segments must be contiguous, non-overlapping and cover the entire text&lt;/div&gt;
+      &lt;div style='margin:12px 0 6px; font-weight:500; color:#475569;'&gt;Epistemic functions (insert boundary when function changes):&lt;/div&gt;
+
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Problem Setup&lt;/strong&gt; — Parsing or rephrasing the problem&lt;/div&gt;
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Plan Generation&lt;/strong&gt; — Stating or deciding on a plan of action, meta-reasoning&lt;/div&gt;
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Fact Retrieval&lt;/strong&gt; — Recalling facts, formulas, problem details without computation&lt;/div&gt;
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Active Computation&lt;/strong&gt; — Algebra, calculations, or other manipulations toward the answer&lt;/div&gt;
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Uncertainty Management&lt;/strong&gt; — Expressing confusion, re-evaluating, including backtracking&lt;/div&gt;
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Result Consolidation&lt;/strong&gt; — Aggregating intermediate results, summarizing, or preparing&lt;/div&gt;
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Self Checking&lt;/strong&gt; — Verifying previous steps, checking calculations, and re-confirmations&lt;/div&gt;
+      &lt;div style='margin-bottom:4px; padding-left:12px;'&gt;• &lt;strong&gt;Final Answer Emission&lt;/strong&gt; — Explicitly stating the final answer&lt;/div&gt;
+    &lt;/div&gt;
+  "/>
+
+  <!-- Fixed labels (always visible) -->
+  <HyperTextLabels name="ner" toName="content" choice="single" showInline="true">
+    <Label value="Problem Setup" background="lightblue"/>
+    <Label value="Plan Generation" background="lightgreen"/>
+    <Label value="Fact Retrieval" background="orange"/>
+    <Label value="Active Computation" background="pink"/>
+    <Label value="Uncertainty Management" background="lightgray"/>
+    <Label value="Result Consolidation" background="red"/>
+    <Label value="Self Checking" background="blue"/>
+    <Label value="Final Answer Emission" background="purple"/>
+  </HyperTextLabels>
+
+  <!-- Scrollable sentences area (reduced height slightly to fit guidelines) -->
+  <View style="height: 60vh; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 12px; background: #fafafa;">
+    <HyperText name="content" value="$html" />
+  </View>
+
+  <!-- Bottom controls (optional) -->
+  <View style="margin-top: 12px; text-align: right;">
+    <!-- Add <Choices> here later if needed -->
+  </View>
+</View>
