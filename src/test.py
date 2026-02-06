@@ -16,7 +16,7 @@ from rt_segmentation import (RTLLMOffsetBased,
                              load_example_trace, RTLLMSurprisal, RTLLMEntropy, RTLLMTopKShift, RTLLMFlatnessBreak,
                              export_gold_set,
 
-                             RTSeg, OffsetFusionGraph,RTLLMReasoningFlow, RTLLMArgument)
+                             RTSeg, OffsetFusionGraph,RTLLMReasoningFlow, RTLLMArgument, RTLLMThoughtAnchor)
 
 
 
@@ -179,6 +179,22 @@ def test_RTLLMArgument():
                                                   seg_base_unit="sent",
                                                   system_prompt=load_prompt("system_prompt_argument"),
                                                   user_prompt=load_prompt("user_prompt_argument"),
+                                                  model_name="Qwen/Qwen3-4B-Instruct-2507")
+    for ofs, label in zip(offsets, labels):
+        print(50 * "=")
+        print(load_example_trace("trc1")[ofs[0]:ofs[1]])
+        print(label)
+    assert isinstance(offsets, list)
+    assert isinstance(labels, list)
+    assert isinstance(offsets[0], tuple) or isinstance(offsets[0], list)
+    assert isinstance(offsets[0][0], int) and isinstance(offsets[0][1], int)
+    assert isinstance(labels[0], str)
+
+def test_RTLLMThoughtAnchor():
+    offsets, labels = RTLLMThoughtAnchor._segment(trace=load_example_trace("trc1"),
+                                                  seg_base_unit="sent",
+                                                  system_prompt=load_prompt("system_prompt_thought_anchor"),
+                                                  user_prompt=load_prompt("user_prompt_thought_anchor"),
                                                   model_name="Qwen/Qwen3-4B-Instruct-2507")
     for ofs, label in zip(offsets, labels):
         print(50 * "=")
