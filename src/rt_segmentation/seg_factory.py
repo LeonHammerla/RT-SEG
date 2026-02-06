@@ -20,6 +20,10 @@ from .llm_split_flatness_break import RTLLMFlatnessBreak
 from .bertopic_segmentation import RTBERTopicSegmentation
 from .zeroshot_seq_classification import RTZeroShotSeqClassification
 from .prm_split import RTPRMBase
+from .llm_thought_anchor_scheme import RTLLMThoughtAnchor
+from .llm_reasoning_flow_scheme import RTLLMReasoningFlow
+from .llm_argument_split import RTLLMArgument
+
 from .semantic_shift import RTEmbeddingBasedSemanticShift
 from .entailment import RTEntailmentBasedSegmentation
 from .late_fusion import (OffsetFusionFuzzy,
@@ -59,6 +63,9 @@ class RTSeg:
         - RTPRMBase: PRM-based segmentation
         - RTEmbeddingBasedSemanticShift: Semantic shift detection using embeddings
         - RTEntailmentBasedSegmentation: Segmentation based on entailment
+        - RTLLMThoughtAnchor: LLM powered with the Thought Anchor Schema
+        - RTLLMReasoningFlow: LLM powered with the Reasoning Flow Schema
+        - RTLLMArgument: Arg Mining based split (LLM powered)
 
         :param engine: The engine instance of type `SegBase` to be
                        utilized by the class. It plays a central 
@@ -102,7 +109,16 @@ class RTSeg:
             RTEmbeddingBasedSemanticShift: {"model_name": "all-MiniLM-L6-v2",
                                             "system_prompt": ""},
             RTEntailmentBasedSegmentation: {"model_name": "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7",
-                                            "system_prompt": ""}
+                                            "system_prompt": ""},
+            RTLLMThoughtAnchor: {"model_name": "Qwen/Qwen2.5-7B-Instruct",
+                                 "system_prompt": load_prompt("system_prompt_thought_anchor"),
+                                 "user_prompt": load_prompt("user_prompt_thought_anchor")},
+            RTLLMReasoningFlow: {"model_name": "Qwen/Qwen2.5-7B-Instruct",
+                                 "system_prompt": load_prompt("system_prompt_reasoning_flow"),
+                                 "user_prompt": load_prompt("user_prompt_reasoning_flow")},
+            RTLLMArgument: {"model_name": "Qwen/Qwen2.5-7B-Instruct",
+                                 "system_prompt": load_prompt("system_prompt_argument"),
+                                 "user_prompt": load_prompt("user_prompt_argument")}
         }
 
     def sdb_segment_ds(self,

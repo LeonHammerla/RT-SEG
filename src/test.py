@@ -211,5 +211,6 @@ if __name__ == "__main__":
         "-v",
         "-s",
         "--log-cli-level=INFO",
+        # "-k", "test_RTBERTopicSegmentation",
         __file__
     ])
