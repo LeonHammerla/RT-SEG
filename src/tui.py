@@ -6,7 +6,7 @@ from rich.markup import escape
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual import on, events
-from textual.widgets import Header, Footer, Static, Button, TextArea, Label, Select, SelectionList
+from textual.widgets import Header, Footer, Static, Button, TextArea, Label, Select, SelectionList, RadioButton, RadioSet
 
 from rt_segmentation import (RTLLMOffsetBased,
                              RTLLMForcedDecoderBased,
@@ -27,6 +27,11 @@ from rt_segmentation import (RTLLMOffsetBased,
                              RTEmbeddingBasedSemanticShift,
                              RTPRMBase,
                              RTEntailmentBasedSegmentation,
+                             RTLLMReasoningFlow,
+                             RTLLMThoughtAnchor,
+                             RTLLMArgument,
+                             RTZeroShotSeqClassificationTA,
+                             RTZeroShotSeqClassificationRF,
                              RTSeg,
                              OffsetFusionFuzzy,
                              OffsetFusionGraph,
@@ -100,9 +105,22 @@ class InputPanel(Vertical):
     def compose(self) -> ComposeResult:
         # yield Label("Reasoning Trace", id="title")
 
+        with Horizontal(id="binary-row"):
+            with Vertical(classes="binary-col"):
+                yield Label("Label Fusion Mode:")
+                with RadioSet(id="label-fusion"):
+                    yield RadioButton("Concat", id="concat")
+                    yield RadioButton("Majority", id="majority")
+
+            with Vertical(classes="binary-col"):
+                yield Label("Seg Base Unit:")
+                with RadioSet(id="seg-unit"):
+                    yield RadioButton("Clause", id="clause")
+                    yield RadioButton("Sentence", id="sent")
+
         # Wrap selection in a Vertical container to keep it together
         with Vertical(id="selection-container-aligner"):
-            yield Label("Segmentation Method:", id="method-label")
+            yield Label("Offset Late Fusion(s):", id="method-label")
             yield Select(
                 [
                     ("Fuzzy", "fuzzy"),
@@ -116,13 +134,7 @@ class InputPanel(Vertical):
                 value="voting",
                 id="aligner-select"
             )
-            OffsetFusionFuzzy,
-            OffsetFusionGraph,
-            OffsetFusionMerge,
-            OffsetFusionVoting,
-            OffsetFusionFlatten,
-            OffsetFusionIntersect,
-            OffsetFusion,
+
         # Segmentation method selector
         with VerticalScroll(id="selection-container"):
             yield Label("Segmentation Method(s):", id="method-label")
@@ -141,6 +153,11 @@ class InputPanel(Vertical):
                 ("Semantic Shift", "semantic"),
                 ("PRM Based", "prm"),
                 ("Entailment Based", "entailment"),
+                ("LLM (reasoning-flow)", "llmrf"),
+                ("LLM (thought-anchor)", "llmta"),
+                ("LLM (argument)", "llmarg"),
+                ("Zero-Shot (reasoning-flow)", "zerorf"),
+                ("Zero-Shot (thought-anchor)", "zerota"),
                 id="method-select",
             )
 
@@ -171,7 +188,10 @@ class MyApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        # Text Input Area:
         self.query_one("#input", TextArea).focus()
+        self.query_one("#label-fusion", RadioSet).value = "concat"
+        self.query_one("#seg-unit", RadioSet).value = "clause"
 
     def on_key(self, event: events.Key) -> None:
         if event.key == "enter" and event.ctrl:
@@ -206,12 +226,33 @@ class MyApp(App):
                        "topic": RTBERTopicSegmentation,
                        "semantic": RTEmbeddingBasedSemanticShift,
                        "prm": RTPRMBase,
-                       "entailment": RTEntailmentBasedSegmentation,}
+                       "entailment": RTEntailmentBasedSegmentation,
+                       "llmrf": RTLLMReasoningFlow,
+                       "llmta": RTLLMThoughtAnchor,
+                       "llmarg": RTLLMArgument,
+                       "zerota": RTZeroShotSeqClassificationTA,
+                       "zerorf": RTZeroShotSeqClassificationRF,
+        }
         for method in selected_methods:
             try:
                 engines.append(method_dict[method])
             except KeyError:
                 print(f"Method {method} not found.")
+
+        fusion_radio = self.query_one("#label-fusion", RadioSet)
+        unit_radio = self.query_one("#seg-unit", RadioSet)
+
+        selected_fusion = (
+            fusion_radio.pressed_button.id
+            if fusion_radio.pressed_button
+            else "concat"
+        )
+
+        selected_unit = (
+            unit_radio.pressed_button.id
+            if unit_radio.pressed_button
+            else "clause"
+        )
 
         aligner_dict = {"fuzzy": OffsetFusionFuzzy,
                         "graph": OffsetFusionGraph,
@@ -220,10 +261,11 @@ class MyApp(App):
                         "flatten": OffsetFusionFlatten,
                         "intersect": OffsetFusionIntersect,
                         "none": None,}
+
         factory = RTSeg(engines=engines,
                         aligner=aligner_dict[selected_aligner],
-                        label_fusion_type="concat",
-                        seg_base_unit="clause")
+                        label_fusion_type=selected_fusion,
+                        seg_base_unit=selected_unit)
         offsets, seg_labels = factory(text)
 
         if set(seg_labels) == {"UNK"}:

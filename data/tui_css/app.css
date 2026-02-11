@@ -63,3 +63,13 @@ ResultsPanel {
     padding: 1;
     border: round $primary;
 }
+
+#binary-row {
+    height: auto;
+    width: 100%;
+}
+
+.binary-col {
+    width: 1fr;
+    height: auto;
+}
