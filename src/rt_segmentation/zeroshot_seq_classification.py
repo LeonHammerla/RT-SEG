@@ -56,9 +56,9 @@ class RTZeroShotSeqClassification(SegBase):
             trace: str,
             seg_base_unit: Literal["sent", "clause"],
             model_name: Literal[
-                "Qwen/Qwen2.5-7B-Instruct-1M",
-                "mistralai/Mixtral-8x7B-Instruct-v0.1",
-                "Qwen/Qwen2.5-7B-Instruct"],
+                "facebook/bart-large-mnli",
+                "FacebookAI/roberta-large-mnli",
+                "MoritzLaurer/mDeBERTa-v3-base-mnli-xnli"],
             labels: List[str] = ["Context", "Planning", "Fact", "Restatement", "Example", "Reflection", "Conclusion"],
             **kwargs
     ) -> Tuple[List[Tuple[int, int]], List[str]]:
