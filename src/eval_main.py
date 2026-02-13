@@ -6,7 +6,8 @@ from surrealdb import Surreal
 from tqdm import tqdm
 
 from rt_segmentation import sdb_login, evaluate_aggregate_segmentations, evaluate_segmentations, \
-    evaluate_approaches_bounding_similarity, score_approaches_triadic_boundary_similarity_complete, plot_score_vs_time
+    evaluate_approaches_bounding_similarity, score_approaches_triadic_boundary_similarity_complete_ta, \
+    get_single_engine_results_ta_and_rf, plot_single_engine_results_ta_and_rf
 from rt_segmentation import (RTLLMOffsetBased,
                              RTLLMForcedDecoderBased,
                              RTLLMSegUnitBased,
@@ -32,7 +33,7 @@ from rt_segmentation import (RTLLMOffsetBased,
                              RTZeroShotSeqClassificationTA,
                              RTZeroShotSeqClassificationRF,
                              import_annotated_data,
-                             score_approaches_triadic_boundary_similarity)
+                             score_approaches_triadic_boundary_similarity, plot_score_vs_time_ta, plot_score_vs_time_rf)
 
 
 
@@ -137,4 +138,6 @@ if __name__ == "__main__":
     # score_approaches_triadic_boundary_similarity(mm, aa, ss)
 
     # score_approaches_triadic_boundary_similarity_complete()
-    plot_score_vs_time()
+    # plot_score_vs_time_ta()
+    # plot_score_vs_time_rf()
+    plot_single_engine_results_ta_and_rf(3)

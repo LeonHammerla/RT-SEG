@@ -797,19 +797,20 @@ def aggregated_results_to_json(agg_results: dict) -> dict:
 
 
 def evaluate_triadic_consensus(segs: List[List[Tuple[int, int]]],
-                               trace_len: int):
+                               trace_len: int,
+                               window: int = 10):
     """
     Calculates the B-score for H1, H2, and a specific AI model.
     """
-    scorer = ReasoningAgreementSuite(window_size=10)
+    scorer = ReasoningAgreementSuite(window_size=window)
     return [scorer.boundary_similarity(comb[0], comb[1], trace_len) for comb in combinations(segs, 2)]
 
 
-def evaluate_approaches_bounding_similarity(traces: List[str], segmentations: List[Any]):
+def evaluate_approaches_bounding_similarity(traces: List[str], segmentations: List[Any], window: int = 10):
     # Aggregation loop
     all_triplets = []
     for i in range(len(traces)):
-        scores = evaluate_triadic_consensus([v for (k, v) in segmentations[i].items()], len(traces[i]))
+        scores = evaluate_triadic_consensus([v for (k, v) in segmentations[i].items()], len(traces[i]), window)
         all_triplets.extend(scores)
 
     final_group_score = np.mean(all_triplets)
@@ -894,8 +895,20 @@ def clean_offsets(offsets: List[Tuple[int, int]], trace: str) -> List[Tuple[int,
     return cleaned_final_offsets
 
 
+@lru_cache(maxsize=None)
+def get_all_data():
+    login_data = sdb_login()
+    with Surreal(login_data["url"]) as db:
+        db.signin({"username": login_data["user"], "password": login_data["pwd"]})
+        db.use(login_data["ns"], login_data["db"])
 
-def score_approaches_triadic_boundary_similarity_complete():
+        res = db.query(
+            "SELECT *, ->?->?.* from rtrace")
+    return res
+
+
+
+def score_approaches_triadic_boundary_similarity_complete_ta(window: int = 10):
     all_human = ["thought_anchor_gold_ve",
                      "though_anchor_gold_ve",
                      "thought_anchor_gold_ha",
@@ -908,13 +921,7 @@ def score_approaches_triadic_boundary_similarity_complete():
                  "thought_anchor_gold_ha",
                  "though_anchor_gold_ha"]
 
-    login_data = sdb_login()
-    with Surreal(login_data["url"]) as db:
-        db.signin({"username": login_data["user"], "password": login_data["pwd"]})
-        db.use(login_data["ns"], login_data["db"])
-
-        res = db.query(
-            "SELECT *, ->?->?.* from rtrace")
+    res = get_all_data()
 
     traces = []
     human_anno_data = dict()
@@ -959,7 +966,7 @@ def score_approaches_triadic_boundary_similarity_complete():
             for idx in range(len(current_data[[*current_data.keys()][0]])):
                 target_data.append({k: v[idx] for (k, v) in current_data.items()})
 
-            score = evaluate_approaches_bounding_similarity(traces, target_data)
+            score = evaluate_approaches_bounding_similarity(traces, target_data, window)
             print(f"{model} group score: {score:.3f}")
 
             model_names.append(model)
@@ -1018,14 +1025,167 @@ def score_approaches_triadic_boundary_similarity_complete():
         else:
             shapes.append("none")
 
-    scorer = ReasoningAgreementSuite(window_size=10)
+    scorer = ReasoningAgreementSuite(window_size=window)
     human_keys = [*human_anno_data.keys()]
     human_threshold = []
     assert len(human_keys) == 2, human_keys
     for idx in range(len(human_anno_data[human_keys[0]])):
         human_threshold.append(scorer.boundary_similarity(human_anno_data[human_keys[0]][idx], human_anno_data[human_keys[1]][idx], len(traces[idx])))
 
-    return {"labels": labels, "score": model_scores, "time": model_times, "shapes": shapes}, np.mean(human_threshold)
+    return {"labels": labels, "score": model_scores, "time": model_times, "shapes": shapes, "model_ids": model_names}, np.mean(human_threshold)
+
+
+def score_approaches_triadic_boundary_similarity_complete_rf(window: int = 10):
+    all_human = ["thought_anchor_gold_ve",
+                     "though_anchor_gold_ve",
+                     "thought_anchor_gold_ha",
+                     "though_anchor_gold_ha",
+                     "reasoning_flow_gold"]
+
+
+    gold_keys = ["reasoning_flow_gold"]
+
+    res = get_all_data()
+
+    traces = []
+    human_anno_data = dict()
+    model_anno_data = dict()
+    model_time_dict = dict()
+    for rtrace in tqdm(res, desc="Gathering data"):
+        traces.append(rtrace["rt"])
+        for anno in rtrace["->?"]["->?"]:
+            if anno.get("id").table_name in gold_keys:
+                if anno.get("id").table_name in human_anno_data:
+                    human_anno_data[anno.get("id").table_name].append(clean_offsets(anno["split"], rtrace["rt"]))
+                else:
+                    human_anno_data[anno.get("id").table_name] = [clean_offsets(anno["split"], rtrace["rt"])]
+            elif anno.get("id").table_name in all_human:
+                continue
+            else:
+                if anno.get("id").table_name in model_anno_data:
+                    model_anno_data[anno.get("id").table_name].append(clean_offsets(anno["split"], rtrace["rt"]))
+                    model_time_dict[anno.get("id").table_name].append(anno["ptime"])
+                else:
+                    model_anno_data[anno.get("id").table_name] = [clean_offsets(anno["split"], rtrace["rt"])]
+                    model_time_dict[anno.get("id").table_name] = [anno["ptime"]]
+
+
+    print(*human_anno_data.items(), sep="\n")
+    print(*model_anno_data.items(), sep="\n")
+    human_keys = [*human_anno_data.keys()]
+    assert len(list(set([len(v) for (k, v) in human_anno_data.items()]))) == 1, [(k, len(v)) for (k, v) in
+                                                                                 human_anno_data.items()]
+    human_len =  [len(v) for (k, v) in human_anno_data.items()][0]
+    # assert len(list(set([len(v) for (k, v) in model_anno_data.items()]))) == 1, [(k, len(v)) for (k, v) in model_anno_data.items()]
+    # assert set([len(v) for (k, v) in human_anno_data.items()]) == set([len(v) for (k, v) in model_anno_data.items()])
+    scorer = ReasoningAgreementSuite(window_size=window)
+    model_names = []
+    model_scores = []
+    model_times = []
+    for model in model_anno_data:
+        if len(model_anno_data[model]) == human_len:
+            score = []
+            for idx, trace in enumerate(traces):
+                score.append(scorer.boundary_similarity(human_anno_data[human_keys[0]][idx], model_anno_data[model][idx], len(trace)))
+            score = np.mean(score)
+            print(f"{model} group score: {score:.3f}")
+
+            model_names.append(model)
+            model_scores.append(score)
+            model_times.append(np.mean(model_time_dict[model]))
+
+    labels = []
+    shapes = []
+    for model_name in model_names:
+        found = []
+        for target in ["RTRuleRegex",
+                       "RTNewLine"]:
+            if target in model_name:
+                found.append("H")
+
+        for target in ["RTLLMForcedDecoderBased",
+                       "RTLLMSurprisal",
+                       "RTLLMEntropy",
+                       "RTLLMTopKShift",
+                       "RTLLMFlatnessBreak"]:
+            if target in model_name:
+                found.append("P")
+        for target in ["RTBERTopicSegmentation",
+                       "RTEmbeddingBasedSemanticShift",
+                       "RTEntailmentBasedSegmentation",
+                       "RTZeroShotSeqClassification",
+                       "RTZeroShotSeqClassificationTA",
+                       "RTZeroShotSeqClassificationRF"]:
+            if target in model_name:
+                found.append("S")
+        for target in ["RTPRMBase",
+                       "RTLLMThoughtAnchor",
+                       "RTLLMReasoningFlow",
+                       "RTLLMArgument",
+                       "RTLLMOffsetBased",
+                       "RTLLMSegUnitBased"
+                       ]:
+            if target in model_name:
+                found.append("L")
+        found = list(set(found))
+        found.sort()
+        labels.append("".join(found))
+
+        if "OffsetFusionFuzzy" in model_name:
+            shapes.append("fuzzy")
+        elif "OffsetFusionGraph" in model_name:
+            shapes.append("graph")
+        elif "OffsetFusionMerge" in model_name:
+            shapes.append("union")
+        elif "OffsetFusionIntersect" in model_name:
+            shapes.append("intersect")
+        elif "OffsetFusionVoting" in model_name:
+            shapes.append("voting")
+        elif "OffsetFusionFlatten" in model_name:
+            shapes.append("flatten")
+        else:
+            shapes.append("none")
+
+    return {"labels": labels, "score": model_scores, "time": model_times, "shapes": shapes, "model_ids": model_names}
+
+
+
+def get_single_engine_results_ta_and_rf(unit: Literal["sent", "clause"], window: int = 10):
+    data1, _ = score_approaches_triadic_boundary_similarity_complete_ta(window)
+    data2 = score_approaches_triadic_boundary_similarity_complete_rf(window)
+    targets = [
+        "RTRuleRegex",
+        "RTNewLine",
+        "RTLLMForcedDecoderBased",
+        "RTLLMSurprisal",
+        "RTLLMEntropy",
+        "RTLLMTopKShift",
+        "RTLLMFlatnessBreak",
+        "RTBERTopicSegmentation",
+        "RTEmbeddingBasedSemanticShift",
+        "RTEntailmentBasedSegmentation",
+        "RTZeroShotSeqClassification",
+        "RTZeroShotSeqClassificationTA",
+        "RTZeroShotSeqClassificationRF",
+        "RTPRMBase",
+        "RTLLMThoughtAnchor",
+        "RTLLMReasoningFlow",
+        "RTLLMArgument",
+        "RTLLMOffsetBased",
+        "RTLLMSegUnitBased"
+    ]
+    targets = [f"{tt}_{unit}" for tt in targets]
+    ta_scores = []
+    rf_scores = []
+    model_ids = []
+    for idx in range(len(data1["labels"])):
+        assert data1["model_ids"][idx] == data2["model_ids"][idx]
+        if data1["model_ids"][idx] in targets:
+            ta_scores.append(data1["score"][idx])
+            rf_scores.append(data2["score"][idx])
+            model_ids.append(data1["model_ids"][idx])
+
+    return ta_scores, rf_scores, model_ids
 
 
 @lru_cache(maxsize=None)

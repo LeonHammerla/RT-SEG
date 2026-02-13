@@ -35,17 +35,66 @@ from rt_segmentation import (RTLLMOffsetBased,
                              RTZeroShotSeqClassificationRF, import_annotated_data)
 
 
+def check():
+    login_data = sdb_login()
+    with Surreal(login_data["url"]) as db:
+        db.signin({"username": login_data["user"], "password": login_data["pwd"]})
+        db.use(login_data["ns"], login_data["db"])
+
+        tables = [*db.query("info for DB").get("tables").keys()]
+        unit = "sent"
+        targets = [
+            "RTRuleRegex",
+            "RTNewLine",
+            "RTLLMForcedDecoderBased",
+            "RTLLMSurprisal",
+            "RTLLMEntropy",
+            "RTLLMTopKShift",
+            "RTLLMFlatnessBreak",
+            "RTBERTopicSegmentation",
+            "RTEmbeddingBasedSemanticShift",
+            "RTEntailmentBasedSegmentation",
+            "RTZeroShotSeqClassification",
+            "RTZeroShotSeqClassificationTA",
+            "RTZeroShotSeqClassificationRF",
+            "RTPRMBase",
+            "RTLLMThoughtAnchor",
+            "RTLLMReasoningFlow",
+            "RTLLMArgument",
+            "RTLLMOffsetBased",
+            "RTLLMSegUnitBased"
+        ]
+        targets = [f"{tt}_{unit}" for tt in targets]
+
+        for t in targets:
+            if t not in tables:
+                print(f"Table {t} not found")
+            else:
+                res = db.query(f"count(select id from {t})")
+                print(f"{t}: {res}")
+
 def run_single_model_exp(model_list, aligner, seg_base_unit):
+    login_data = sdb_login()
+    with Surreal(login_data["url"]) as db:
+        db.signin({"username": login_data["user"], "password": login_data["pwd"]})
+        db.use(login_data["ns"], login_data["db"])
+
+        tables = [*db.query("info for DB").get("tables").keys()]
+
     rt_seg = RTSeg(
         engines=model_list,
         aligner=None if len(model_list) == 1 else aligner,
         label_fusion_type="concat",
-        seg_base_unit=seg_base_unit
+        seg_base_unit=seg_base_unit,
     )
+
+    if rt_seg.exp_id in tables:
+        return f"SUCCESS: {rt_seg.exp_id}"
+
     try:
         rt_seg.sdb_segment_ds(
             exp_id=rt_seg.exp_id,
-            clear=False,
+            clear=True,
             db="RT_RF",
             seg_base_unit=seg_base_unit
         )
@@ -55,22 +104,22 @@ def run_single_model_exp(model_list, aligner, seg_base_unit):
 
 
 def main_exp(aligner: OffsetFusion = OffsetFusionGraph,
-             seg_base_unit: Literal["clause", "sent"] = "clause"):
+             seg_base_unit: Literal["clause", "sent"] = "sent"):
 
 
     models = [
-        # [RTLLMOffsetBased],
-       # [RTLLMForcedDecoderBased],
-        #[RTLLMSegUnitBased],
+        #[RTLLMOffsetBased],
+      # [RTLLMForcedDecoderBased],
+        [RTLLMSegUnitBased],
         #[RTRuleRegex],
         #[RTNewLine],
-        # [RTPRMBase],
+        #[RTPRMBase],
         #[RTEntailmentBasedSegmentation],
         #[RTLLMEntropy],
         #[RTLLMTopKShift],
         #[RTLLMFlatnessBreak],
         #[RTLLMSurprisal],
-        [RTBERTopicSegmentation],
+        #[RTBERTopicSegmentation],
         #[RTZeroShotSeqClassification],
         #[RTLLMReasoningFlow],
         #[RTLLMArgument],
@@ -118,4 +167,5 @@ if __name__ == "__main__":
 
     # import_annotated_data()
 
-    main_exp()
+    # main_exp()
+    check()
