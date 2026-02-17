@@ -169,12 +169,11 @@ def sort_aligned_lists(key_list, *other_lists):
     return tuple(list(item) for item in unzipped)
 
 
-def plot_stacked_with_ids(list1, list2, list3, list4, model_ids,
+"""def plot_stacked_with_ids(list1, list2, list3, list4,
+                          time1, time2, time3, time4,
+                          model_ids,
                           id_top="Top Metric", id_bot="Bottom Metric", eid="model_eval"):
-    """
-    Plots stacked lines with internal text IDs to differentiate plots
-    without adding external margins.
-    """
+
     list1, list2, list3, list4, model_ids = sort_aligned_lists(list1, list2, list3, list4, model_ids)
     target_mapping = {
     "RTRuleRegex": "Regex",
@@ -289,8 +288,409 @@ def plot_stacked_with_ids(list1, list2, list3, list4, model_ids,
 
     # --- 5. SAVE ---
     plt.savefig(f"{bp()}/data/plots/stacked_with_ids_{eid}.pdf", format="pdf", bbox_inches='tight')
-    plt.show()
+    plt.show()"""
 
+"""def plot_stacked_with_ids(list1, list2, list3, list4,
+                          time1, time2, time3, time4,
+                          model_ids,
+                          id_top="Top Metric", id_bot="Bottom Metric", eid="model_eval"):
+
+    # --- keep times aligned after sorting ---
+    time_map = {mid: (t1, t2, t3, t4) for mid, t1, t2, t3, t4 in zip(model_ids, time1, time2, time3, time4)}
+
+    list1, list2, list3, list4, model_ids = sort_aligned_lists(list1, list2, list3, list4, model_ids)
+
+    time1 = [time_map[mid][0] for mid in model_ids]
+    time2 = [time_map[mid][1] for mid in model_ids]
+    time3 = [time_map[mid][2] for mid in model_ids]
+    time4 = [time_map[mid][3] for mid in model_ids]
+
+    target_mapping = {
+        "RTRuleRegex": "Regex",
+        "RTNewLine": "Newline",
+        "RTLLMForcedDecoderBased": "Forced-Decod.",
+        "RTLLMSurprisal": "Surprisal",
+        "RTLLMEntropy": "Entropy",
+        "RTLLMTopKShift": "Top-K Shift",
+        "RTLLMFlatnessBreak": "Flatness Break",
+        "RTBERTopicSegmentation": "BERTopic",
+        "RTEmbeddingBasedSemanticShift": "SemShift",
+        "RTEntailmentBasedSegmentation": "Entailment",
+        "RTZeroShotSeqClassification": "ZeroShot",
+        "RTZeroShotSeqClassificationTA": "ZeroShot (TA)",
+        "RTZeroShotSeqClassificationRF": "ZeroShot (RF)",
+        "RTPRMBase": "PRM Base",
+        "RTLLMThoughtAnchor": "LLM (TA)",
+        "RTLLMReasoningFlow": "LLM (RF)",
+        "RTLLMArgument": "LLM Arg.",
+        "RTLLMOffsetBased": "LLM Offset",
+        "RTLLMSegUnitBased": "LLM Unit"
+    }
+
+    model_ids_disp = [target_mapping.get(m, m) for m in model_ids]
+
+    # --- score dataframes ---
+    df_bot = pd.concat([
+        pd.DataFrame({'Score': list1, 'Model': model_ids_disp, 'Type': 'TA Schema'}),
+        pd.DataFrame({'Score': list2, 'Model': model_ids_disp, 'Type': 'RF Schema'})
+    ], ignore_index=True)
+
+    df_top = pd.concat([
+        pd.DataFrame({'Score': list3, 'Model': model_ids_disp, 'Type': 'TA Schema'}),
+        pd.DataFrame({'Score': list4, 'Model': model_ids_disp, 'Type': 'RF Schema'})
+    ], ignore_index=True)
+
+    # --- aggregated processing time (ONE series per subplot) ---
+    df_time_bot = pd.DataFrame({
+        'Model': model_ids_disp,
+        'Proc Time': (np.array(time1, dtype=float) + np.array(time2, dtype=float)) / 2.0
+    })
+    df_time_top = pd.DataFrame({
+        'Model': model_ids_disp,
+        'Proc Time': (np.array(time3, dtype=float) + np.array(time4, dtype=float)) / 2.0
+    })
+
+    # --- styling ---
+    plt.rcParams.update({
+        "font.family": "serif",
+        "font.serif": ["STIXGeneral"],
+        "mathtext.fontset": "stix",
+    })
+    sns.set_context("paper", font_scale=4)
+    sns.set_style("ticks", {"grid.linestyle": "--"})
+
+    # slightly taller figure to make room for legends above axes
+    fig, (ax_top, ax_bot) = plt.subplots(
+        2, 1, figsize=(18, 12), sharex=True, constrained_layout=True
+    )
+
+    def plot_scores(ax, data, palette_name):
+        types = data['Type'].unique()
+        colors = sns.color_palette(palette_name, n_colors=len(types))
+        color_map = dict(zip(types, colors))
+
+        sns.lineplot(
+            data=data, x='Model', y='Score', hue='Type', ax=ax,
+            palette=color_map, marker='o', markersize=8,
+            alpha=0.7, linewidth=2, legend=False, zorder=3
+        )
+        ax.set_ylim(0., 0.85)
+        ax.set_ylabel("")
+        ax.tick_params(axis='y', labelsize=35)
+        return color_map
+
+    map_top = plot_scores(ax_top, df_top, 'rocket')
+    map_bot = plot_scores(ax_bot, df_bot, 'viridis')
+
+    # --- processing time as background bars (secondary y axes) ---
+    ax_top_t = ax_top.twinx()
+    ax_bot_t = ax_bot.twinx()
+
+    # Put bars behind the score lines
+    ax_top_t.set_zorder(0)
+    ax_bot_t.set_zorder(0)
+    ax_top.set_zorder(2)
+    ax_bot.set_zorder(2)
+
+    ax_top.patch.set_alpha(0)
+    ax_bot.patch.set_alpha(0)
+
+    bar_kwargs = dict(color='lightblue', alpha=0.25, width=0.65, linewidth=0)
+
+    ax_top_t.bar(df_time_top['Model'], df_time_top['Proc Time'], **bar_kwargs, zorder=1)
+    ax_bot_t.bar(df_time_bot['Model'], df_time_bot['Proc Time'], **bar_kwargs, zorder=1)
+
+    # right-axis ticks style
+    for axt in (ax_top_t, ax_bot_t):
+        axt.tick_params(axis='y', labelsize=28)
+        axt.set_ylabel("")
+
+    # sensible y-lims for time axes
+    for axt, arr in [(ax_top_t, df_time_top['Proc Time'].to_numpy()),
+                     (ax_bot_t, df_time_bot['Proc Time'].to_numpy())]:
+        arr = arr[np.isfinite(arr)]
+        if len(arr) > 0:
+            mn, mx = float(arr.min()), float(arr.max())
+            pad = 0.05 * (mx - mn) if mx > mn else 0.5
+            axt.set_ylim(mn - pad, mx + pad)
+
+    # --- x-axis rotation like before ---
+    ax_bot.tick_params(axis='x', labelsize=33)
+    plt.setp(ax_bot.get_xticklabels(), rotation=70, ha='right', rotation_mode='anchor')
+
+    ax_bot.set_xlabel("Model Identifiers", fontweight='bold', labelpad=10, fontsize=45)
+    ax_top.set_xlabel("")
+
+    # figure-level y labels (left + right)
+    fig.supylabel("Bounding Similarity", fontweight='bold', fontsize=45)
+    fig.text(1.04, 0.5, "Processing Time", va='center', ha='right',
+             rotation=-90, fontweight='bold', fontsize=45)
+
+    sns.despine(ax=ax_top)
+    sns.despine(ax=ax_bot)
+    sns.despine(ax=ax_top_t, right=False)
+    sns.despine(ax=ax_bot_t, right=False)
+
+    def add_top_legend_with_box(ax, color_map, title, y=1.30):
+        fig = ax.figure
+
+        handles = [
+            mlines.Line2D([], [], color=c, marker='o', linestyle='-',
+                          linewidth=2, markersize=8, label=t)
+            for t, c in color_map.items()
+        ]
+        bar_handle = mlines.Line2D([], [], color='lightblue', marker='s', linestyle='None',
+                                   markersize=14, alpha=0.25, label='Proc Time')
+        handles.append(bar_handle)
+
+        leg = ax.legend(
+            handles=handles,
+            loc='upper center',
+            bbox_to_anchor=(0.5, y),
+            ncol=4,
+            frameon=False,
+            fontsize='x-small',
+            title=title
+        )
+        leg.get_title().set_fontsize('x-small')
+
+        # --- box around legend in FIGURE coordinates (works even outside axes) ---
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        bbox_disp = leg.get_window_extent(renderer=renderer)
+
+        # Convert display -> figure coordinates
+        bbox_fig = bbox_disp.transformed(fig.transFigure.inverted())
+
+        pad = 0.005  # tweak if you want more/less padding
+        rect = Rectangle(
+            (bbox_fig.x0 - pad, bbox_fig.y0 - pad),
+            bbox_fig.width + 2 * pad,
+            bbox_fig.height + 2 * pad,
+            fill=False,
+            edgecolor='black',
+            linewidth=1,
+            transform=fig.transFigure,
+            zorder=1000
+        )
+        fig.add_artist(rect)
+
+        return leg
+
+    add_top_legend_with_box(ax_top, map_top, title="Base Unit = Sentence", y=1.5)
+    add_top_legend_with_box(ax_bot, map_bot, title="Base Unit = Clause", y=1.5)
+
+    # --- save ---
+    plt.savefig(f"{bp()}/data/plots/stacked_with_ids_{eid}.pdf", format="pdf", bbox_inches='tight')
+    plt.show()"""
+
+
+def plot_stacked_with_ids(list1, list2, list3, list4,
+                          time1, time2, time3, time4,
+                          model_ids,
+                          id_top="Base Unit = Sentence", id_bot="Base Unit = Clause",
+                          eid="model_eval"):
+    """
+    Two stacked line plots (scores) + processing-time bars in the background on a secondary y-axis.
+    - Bottom Proc Time = avg(time1, time2)
+    - Top    Proc Time = avg(time3, time4)
+
+    Changes vs previous version:
+    1) TA/RF colors are identical across both subplots (shared color_map).
+    2) Single legend above both plots (includes TA/RF lines + Proc Time).
+    3) Per-plot identifier labels (id_top/id_bot) placed inside each subplot.
+    """
+
+    # --- keep times aligned after sorting ---
+    time_map = {mid: (t1, t2, t3, t4) for mid, t1, t2, t3, t4 in zip(model_ids, time1, time2, time3, time4)}
+    list1, list2, list3, list4, model_ids = sort_aligned_lists(list1, list2, list3, list4, model_ids)
+
+    time1 = [time_map[mid][0] for mid in model_ids]
+    time2 = [time_map[mid][1] for mid in model_ids]
+    time3 = [time_map[mid][2] for mid in model_ids]
+    time4 = [time_map[mid][3] for mid in model_ids]
+
+    target_mapping = {
+        "RTRuleRegex": "Regex",
+        "RTNewLine": "Newline",
+        "RTLLMForcedDecoderBased": "Forced-Decod.",
+        "RTLLMSurprisal": "Surprisal",
+        "RTLLMEntropy": "Entropy",
+        "RTLLMTopKShift": "Top-K Shift",
+        "RTLLMFlatnessBreak": "Flatness Break",
+        "RTBERTopicSegmentation": "BERTopic",
+        "RTEmbeddingBasedSemanticShift": "SemShift",
+        "RTEntailmentBasedSegmentation": "Entailment",
+        "RTZeroShotSeqClassification": "ZeroShot",
+        "RTZeroShotSeqClassificationTA": "ZeroShot (TA)",
+        "RTZeroShotSeqClassificationRF": "ZeroShot (RF)",
+        "RTPRMBase": "PRM Base",
+        "RTLLMThoughtAnchor": "LLM (TA)",
+        "RTLLMReasoningFlow": "LLM (RF)",
+        "RTLLMArgument": "LLM Arg.",
+        "RTLLMOffsetBased": "LLM Offset",
+        "RTLLMSegUnitBased": "LLM Unit"
+    }
+    model_ids_disp = [target_mapping.get(m, m) for m in model_ids]
+
+    # --- score dataframes ---
+    df_bot = pd.concat([
+        pd.DataFrame({'Score': list1, 'Model': model_ids_disp, 'Type': 'TA Schema'}),
+        pd.DataFrame({'Score': list2, 'Model': model_ids_disp, 'Type': 'RF Schema'})
+    ], ignore_index=True)
+
+    df_top = pd.concat([
+        pd.DataFrame({'Score': list3, 'Model': model_ids_disp, 'Type': 'TA Schema'}),
+        pd.DataFrame({'Score': list4, 'Model': model_ids_disp, 'Type': 'RF Schema'})
+    ], ignore_index=True)
+
+    # --- aggregated processing time (ONE series per subplot) ---
+    df_time_bot = pd.DataFrame({
+        'Model': model_ids_disp,
+        'Proc Time': (np.array(time1, dtype=float) + np.array(time2, dtype=float)) / 2.0
+    })
+    df_time_top = pd.DataFrame({
+        'Model': model_ids_disp,
+        'Proc Time': (np.array(time3, dtype=float) + np.array(time4, dtype=float)) / 2.0
+    })
+
+    # --- styling ---
+    plt.rcParams.update({
+        "font.family": "serif",
+        "font.serif": ["STIXGeneral"],
+        "mathtext.fontset": "stix",
+    })
+    sns.set_context("paper", font_scale=4)
+    sns.set_style("ticks", {"grid.linestyle": "--"})
+
+    # a bit shorter now since we only have one legend
+    fig, (ax_top, ax_bot) = plt.subplots(
+        2, 1, figsize=(18, 11), sharex=True, constrained_layout=True
+    )
+
+    # --- SHARED COLOR MAP across both plots (ensures list1/2 colors match list3/4) ---
+    # (Fix the ordering explicitly so it's stable)
+    type_order = ["TA Schema", "RF Schema"]
+    # choose any palette you like; using "rocket" but taking first 2 colors
+    shared_colors = sns.color_palette("rocket", n_colors=len(type_order))
+    shared_color_map = dict(zip(type_order, shared_colors))
+
+    def plot_scores(ax, data):
+        sns.lineplot(
+            data=data, x='Model', y='Score',
+            hue='Type', hue_order=type_order,
+            ax=ax,
+            palette=shared_color_map,
+            marker='o', markersize=8,
+            alpha=0.7, linewidth=2,
+            legend=False, zorder=3
+        )
+        ax.set_ylim(0., 0.85)
+        ax.set_ylabel("")
+        ax.tick_params(axis='y', labelsize=35)
+
+    plot_scores(ax_top, df_top)
+    plot_scores(ax_bot, df_bot)
+
+    # --- processing time as background bars (secondary y axes) ---
+    ax_top_t = ax_top.twinx()
+    ax_bot_t = ax_bot.twinx()
+
+    # Put bars behind the score lines
+    ax_top_t.set_zorder(0)
+    ax_bot_t.set_zorder(0)
+    ax_top.set_zorder(2)
+    ax_bot.set_zorder(2)
+    ax_top.patch.set_alpha(0)
+    ax_bot.patch.set_alpha(0)
+
+    bar_kwargs = dict(color='lightblue', alpha=0.25, width=0.65, linewidth=0)
+    ax_top_t.bar(df_time_top['Model'], df_time_top['Proc Time'], **bar_kwargs, zorder=1)
+    ax_bot_t.bar(df_time_bot['Model'], df_time_bot['Proc Time'], **bar_kwargs, zorder=1)
+
+    for axt in (ax_top_t, ax_bot_t):
+        axt.tick_params(axis='y', labelsize=28)
+        axt.set_ylabel("")
+
+    for axt, arr in [(ax_top_t, df_time_top['Proc Time'].to_numpy()),
+                     (ax_bot_t, df_time_bot['Proc Time'].to_numpy())]:
+        arr = arr[np.isfinite(arr)]
+        if len(arr) > 0:
+            mn, mx = float(arr.min()), float(arr.max())
+            pad = 0.05 * (mx - mn) if mx > mn else 0.5
+            axt.set_ylim(mn - pad, mx + pad)
+
+    # --- x-axis rotation like before ---
+    ax_bot.tick_params(axis='x', labelsize=33)
+    plt.setp(ax_bot.get_xticklabels(), rotation=70, ha='right', rotation_mode='anchor')
+
+    ax_bot.set_xlabel("Model Identifiers", fontweight='bold', labelpad=10, fontsize=45)
+    ax_top.set_xlabel("")
+
+    # figure-level y labels (left + right)
+    fig.supylabel("Bounding Similarity", fontweight='bold', fontsize=45)
+    fig.text(1.04, 0.5, "Processing Time (s)", va='center', ha='right',
+             rotation=-90, fontweight='bold', fontsize=45)
+
+    sns.despine(ax=ax_top)
+    sns.despine(ax=ax_bot)
+    sns.despine(ax=ax_top_t, right=False)
+    sns.despine(ax=ax_bot_t, right=False)
+
+    # --- Per-plot identifier boxes (back inside each axis) ---
+    def add_id_box(ax, text):
+        ax.text(
+            0.01, 0.96, text, transform=ax.transAxes,
+            fontsize=40, fontweight='bold', va='top', ha='left',
+            bbox=dict(facecolor='white', alpha=0.6, edgecolor='none', pad=2),
+            zorder=20
+        )
+
+    add_id_box(ax_top, id_top)
+    add_id_box(ax_bot, id_bot)
+
+    # --- ONE legend above both plots, with black box around it ---
+    def add_global_legend_with_box(fig, color_map):
+        line_handles = [
+            mlines.Line2D([], [], color=color_map[t], marker='o', linestyle='-',
+                          linewidth=2, markersize=8, label=t)
+            for t in type_order
+        ]
+        bar_handle = mlines.Line2D([], [], color='lightblue', marker='s', linestyle='None',
+                                   markersize=14, alpha=0.25, label='Proc Time')
+
+        handles = line_handles + [bar_handle]
+
+        leg = fig.legend(
+            handles=handles,
+            loc='upper center',
+            bbox_to_anchor=(0.5, 1.1),
+            ncol=4,
+            frameon=False,
+            fontsize='x-small'
+        )
+
+        # draw black rectangle around legend in figure coordinates
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        bbox_disp = leg.get_window_extent(renderer=renderer)
+        bbox_fig = bbox_disp.transformed(fig.transFigure.inverted())
+
+        pad = 0.005
+        rect = Rectangle(
+            (bbox_fig.x0 - pad, bbox_fig.y0 - pad),
+            bbox_fig.width + 2 * pad,
+            bbox_fig.height + 2 * pad,
+            fill=False, edgecolor='black', linewidth=1,
+            transform=fig.transFigure, zorder=1000
+        )
+        fig.add_artist(rect)
+
+    add_global_legend_with_box(fig, shared_color_map)
+
+    # --- save ---
+    plt.savefig(f"{bp()}/data/plots/stacked_with_ids_{eid}.pdf", format="pdf", bbox_inches='tight')
+    plt.show()
 
 def plot_score_vs_time_ta():
     data, threshold = score_approaches_triadic_boundary_similarity_complete_ta(window=3)
@@ -301,8 +701,8 @@ def plot_score_vs_time_rf():
     plot_approach_evaluation(data, None, "rf")
 
 def plot_single_engine_results_ta_and_rf(window):
-    ta_scores, rf_scores, model_ids = get_single_engine_results_ta_and_rf("clause", window)
-    ta_scores_sent, rf_scores_sent, model_ids_sent = get_single_engine_results_ta_and_rf("sent", window)
+    ta_scores, rf_scores, model_ids, ta_times, rf_times = get_single_engine_results_ta_and_rf("clause", window)
+    ta_scores_sent, rf_scores_sent, model_ids_sent, ta_times_sent, rf_times_sent = get_single_engine_results_ta_and_rf("sent", window)
     model_ids = [m.split("_")[0] for m in model_ids]
     model_ids_sent = [m.split("_")[0] for m in model_ids_sent]
     """ta_scores = 19*[0.4]
@@ -310,18 +710,26 @@ def plot_single_engine_results_ta_and_rf(window):
     model_ids = [str(i) for i in range(2000000000000000000000001, 2000000000000000000000020)]"""
     cl_dict = dict()
     for idx in range(len(ta_scores)):
-        cl_dict[model_ids[idx]] = (ta_scores[idx], rf_scores[idx])
+        cl_dict[model_ids[idx]] = (ta_scores[idx], rf_scores[idx], ta_times[idx], rf_times[idx])
     se_dict = dict()
     for idx in range(len(ta_scores_sent)):
-        se_dict[model_ids_sent[idx]] = (ta_scores_sent[idx], rf_scores_sent[idx])
+        se_dict[model_ids_sent[idx]] = (ta_scores_sent[idx], rf_scores_sent[idx], ta_times_sent[idx], rf_times_sent[idx])
     assert len(cl_dict) == len(se_dict)
     l1, l2, l3, l4 = [], [], [], []
+    t1, t2, t3, t4 = [], [], [], []
     for k in cl_dict:
         l1.append(cl_dict[k][0])
         l2.append(cl_dict[k][1])
+        t1.append(cl_dict[k][2])
+        t2.append(cl_dict[k][3])
+
         l3.append(se_dict[k][0])
         l4.append(se_dict[k][1])
+        t3.append(se_dict[k][2])
+        t4.append(se_dict[k][3])
     for idx in range(len(model_ids)):
         assert model_ids[idx] == model_ids_sent[idx]
-    plot_stacked_with_ids(l1, l2, l3, l4, [m.split("_")[0] for m in model_ids],
+    plot_stacked_with_ids(l1, l2, l3, l4,
+                          t1, t2, t3, t4,
+                          [m.split("_")[0] for m in model_ids],
                           id_top="Base Unit = Clause", id_bot="Base Unit = Sentence", eid=f"window_{window}")

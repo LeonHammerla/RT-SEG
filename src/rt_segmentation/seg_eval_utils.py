@@ -1,5 +1,6 @@
 import copy
 import json
+import sqlite3
 from functools import lru_cache
 from typing import List, Tuple, Dict, Optional, Any, Literal
 
@@ -12,7 +13,7 @@ from itertools import combinations
 from surrealdb import Surreal
 from tqdm import tqdm
 
-from rt_segmentation import sdb_login, RTSeg
+from rt_segmentation import sdb_login, RTSeg, bp
 
 
 class TraceSegmentEvaluator:
@@ -1192,6 +1193,8 @@ def get_single_engine_results_ta_and_rf(unit: Literal["sent", "clause"], window:
     targets = [f"{tt}_{unit}" for tt in targets]
     ta_scores = []
     rf_scores = []
+    ta_times = []
+    rf_times = []
     model_ids = []
     for idx in range(len(data1["labels"])):
         assert data1["model_ids"][idx] == data2["model_ids"][idx]
@@ -1200,7 +1203,10 @@ def get_single_engine_results_ta_and_rf(unit: Literal["sent", "clause"], window:
             rf_scores.append(data2["score"][idx])
             model_ids.append(data1["model_ids"][idx])
 
-    return ta_scores, rf_scores, model_ids
+            ta_times.append(data1["time"][idx])
+            rf_times.append(data2["time"][idx])
+
+    return ta_scores, rf_scores, model_ids, ta_times, rf_times
 
 
 @lru_cache(maxsize=None)
@@ -1278,6 +1284,27 @@ def score_approaches_triadic_boundary_similarity_one_model(exp_id,
 
     score = evaluate_approaches_bounding_similarity(traces, target_data)
     return score
+
+
+def extract_all_from_database():
+    conn = sqlite3.connect(f"{bp()}/data/local_db/evo_results.sqlite")
+
+    # This makes rows behave like dicts
+    conn.row_factory = sqlite3.Row
+
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM results")
+
+    rows = cur.fetchall()
+
+    # Convert sqlite3.Row → normal dict
+    data = [dict(row) for row in rows]
+
+    conn.close()
+
+    print(len(data))
+    print(data[0])
+    return data
 
 
 if __name__ == "__main__":
