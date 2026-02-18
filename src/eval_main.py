@@ -35,6 +35,7 @@ from rt_segmentation import (RTLLMOffsetBased,
                              import_annotated_data,
                              score_approaches_triadic_boundary_similarity, plot_score_vs_time_ta, plot_score_vs_time_rf)
 from rt_segmentation.seg_eval_utils import extract_all_from_database
+from rt_segmentation.seg_plot_utils import boxplot_evolutionary_search, kde_evolutionary_search
 
 
 def human_agreement():
@@ -140,6 +141,9 @@ if __name__ == "__main__":
     # score_approaches_triadic_boundary_similarity_complete()
     # plot_score_vs_time_ta()
     # plot_score_vs_time_rf()
-    # plot_single_engine_results_ta_and_rf(3)
+    plot_single_engine_results_ta_and_rf(3)
 
-    extract_all_from_database()
+    # extract_all_from_database()
+    # boxplot_evolutionary_search()
+
+    # kde_evolutionary_search()

@@ -1304,7 +1304,61 @@ def extract_all_from_database():
 
     print(len(data))
     print(data[0])
-    return data
+    labels = []
+    shapes = []
+    scores = []
+    for sample in data:
+        model_name = sample["approach_id"]
+        found = []
+        for target in ["RTRuleRegex",
+                       "RTNewLine"]:
+            if target in model_name:
+                found.append("H")
+
+        for target in ["RTLLMForcedDecoderBased",
+                       "RTLLMSurprisal",
+                       "RTLLMEntropy",
+                       "RTLLMTopKShift",
+                       "RTLLMFlatnessBreak"]:
+            if target in model_name:
+                found.append("P")
+        for target in ["RTBERTopicSegmentation",
+                       "RTEmbeddingBasedSemanticShift",
+                       "RTEntailmentBasedSegmentation",
+                       "RTZeroShotSeqClassification",
+                       "RTZeroShotSeqClassificationTA",
+                       "RTZeroShotSeqClassificationRF"]:
+            if target in model_name:
+                found.append("S")
+        for target in ["RTPRMBase",
+                       "RTLLMThoughtAnchor",
+                       "RTLLMReasoningFlow",
+                       "RTLLMArgument",
+                       "RTLLMOffsetBased",
+                       "RTLLMSegUnitBased"
+                       ]:
+            if target in model_name:
+                found.append("L")
+        found = list(set(found))
+        found.sort()
+        labels.append("".join(found))
+
+        if "OffsetFusionFuzzy" in model_name:
+            shapes.append("fuzzy")
+        elif "OffsetFusionGraph" in model_name:
+            shapes.append("graph")
+        elif "OffsetFusionMerge" in model_name:
+            shapes.append("union")
+        elif "OffsetFusionIntersect" in model_name:
+            shapes.append("intersect")
+        elif "OffsetFusionVoting" in model_name:
+            shapes.append("voting")
+        elif "OffsetFusionFlatten" in model_name:
+            shapes.append("flatten")
+        else:
+            shapes.append("none")
+        scores.append(sample["score"])
+    return labels, scores, shapes
 
 
 if __name__ == "__main__":
