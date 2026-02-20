@@ -71,5 +71,3 @@ offsets, labels = segmentor(trace)
 
 * `"majority"` — choose most frequent label
 * `"concat"` — concatenate labels (useful for debugging)
-
----
