@@ -18,5 +18,3 @@ If needed:
 ```bash
 python src/tui.py
 ```
-
----
