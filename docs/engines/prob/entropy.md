@@ -1,7 +1,7 @@
 ---
 layout: default
 title: RTLLMEntropy
-parent: Probabilistic
+parent: Probabilistic Engines
 nav_order: 2
 ---
 

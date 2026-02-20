@@ -1,7 +1,7 @@
 ---
 layout: default
 title: RTLLMForcedDecoderBased
-parent: Probabilistic
+parent: Probabilistic Engines
 nav_order: 3
 ---
 

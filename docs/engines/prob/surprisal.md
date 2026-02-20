@@ -1,7 +1,7 @@
 ---
 layout: default
 title: RTLLMSurprisal
-parent: Probabilistic
+parent: Probabilistic Engines
 nav_order: 1
 ---
 
