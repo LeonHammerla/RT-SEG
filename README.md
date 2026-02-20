@@ -1,4 +1,4 @@
-![My Image](assets/logo.svg)
+<img src="assets/logo.svg" width="100%" style="max-width: 400px;">
 
 This project requires a configuration file for database authentication.
 
