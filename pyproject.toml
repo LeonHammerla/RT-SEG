@@ -1,0 +1,182 @@
+[build-system]
+requires = ["setuptools>=68", "setuptools-scm>=8", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# Distribution (PyPI) name
+name = "rt-seg"
+dynamic = ["version"]
+description = "rt_seg is a Python 3.12.x package for segmenting reasoning traces into coherent chunks and (optionally) assigning a label to each chunk."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [{ name = "Leon Hammerla"}, { name = "Bhuvanesh Verma" }]
+
+dependencies = [
+  "accelerate",
+  "aiohappyeyeballs",
+  "aiohttp",
+  "aiosignal",
+  "annotated-types",
+  "anyio",
+  "attrs",
+  "bertopic",
+  "blis",
+  "catalogue",
+  "certifi",
+  "charset-normalizer",
+  "click",
+  "cloudpathlib",
+  "confection",
+  "contourpy",
+  "cycler",
+  "cymem",
+  "datasets",
+  "dill",
+  "emoji",
+  "filelock",
+  "fonttools",
+  "frozenlist",
+  "fsspec",
+  "h11",
+  "hdbscan",
+  "hf-xet",
+  "httpcore",
+  "httpx",
+  "huggingface-hub",
+  "idna",
+  "iniconfig",
+  "Jinja2",
+  "joblib",
+  "kiwisolver",
+  "linkify-it-py",
+  "llvmlite",
+  "markdown-it-py",
+  "MarkupSafe",
+  "mdit-py-plugins",
+  "mdurl",
+  "mpmath",
+  "multidict",
+  "multiprocess",
+  "murmurhash",
+  "narwhals",
+  "networkx",
+  "nltk",
+  "numba",
+  "numpy",
+  "packaging",
+  "pandas",
+  "pillow",
+  "platformdirs",
+  "pluggy",
+  "preshed",
+  "propcache",
+  "protobuf",
+  "psutil",
+  "pyarrow",
+  "pydantic",
+  "pydantic_core",
+  "Pygments",
+  "pynndescent",
+  "pyparsing",
+  "python-dateutil",
+  "PyYAML",
+  "regex",
+  "requests",
+  "rich",
+  "safetensors",
+  "scikit-learn",
+  "scipy",
+  "sentence-transformers",
+  "six",
+  "smart_open",
+  "spacy",
+  "spacy-legacy",
+  "spacy-loggers",
+  "srsly",
+  "stanza",
+  "surrealdb",
+  "sympy",
+  "textual",
+  "thinc",
+  "threadpoolctl",
+  "tiktoken",
+  "tokenizers",
+  "torch",
+  "tqdm",
+  "transformers",
+  "typer-slim",
+  "typing-inspection",
+  "typing_extensions",
+  "uc-micro-py",
+  "umap-learn",
+  "urllib3",
+  "wasabi",
+  "weasel",
+  "websockets",
+  "wrapt",
+  "xxhash",
+  "yarl",
+  "alabaster"
+]
+
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+# GPU/CUDA stack (keep it optional; otherwise installs break / balloon on CPU machines)
+cuda = [
+  "cuda-bindings",
+  "cuda-pathfinder",
+  "triton",
+  "nvidia-cublas-cu12",
+  "nvidia-cuda-cupti-cu12",
+  "nvidia-cuda-nvrtc-cu12",
+  "nvidia-cuda-runtime-cu12",
+  "nvidia-cudnn-cu12",
+  "nvidia-cufft-cu12",
+  "nvidia-cufile-cu12",
+  "nvidia-curand-cu12",
+  "nvidia-cusolver-cu12",
+  "nvidia-cusparse-cu12",
+  "nvidia-cusparselt-cu12",
+  "nvidia-nccl-cu12",
+  "nvidia-nvjitlink-cu12",
+  "nvidia-nvshmem-cu12",
+  "nvidia-nvtx-cu12",
+]
+
+viz = ["matplotlib", "plotly", "seaborn", "KDEpy"]
+
+# Development / testing / packaging tools
+dev = [
+  "pytest",
+  "build",
+  "twine",
+  "wheel",
+  "setuptools",
+  "Cython",
+]
+
+[project.urls]
+Homepage = "https://github.com/LeonHammerla/RT-SEG"
+Issues = "https://github.com/LeonHammerla/RT-SEG/issues"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["rt_seg*", "rt_segmentation*"]
+
+[tool.setuptools.package-data]
+rt_segmentation = ["py.typed", "*.json"]
+
+[tool.setuptools_scm]
+version_scheme = "no-guess-dev"
+local_scheme = "no-local-version"
