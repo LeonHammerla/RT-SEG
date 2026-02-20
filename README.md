@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" width="30%" style="max-width: 400px;">
+  <img src="docs/assets/logo.svg" width="30%" style="max-width: 400px;">
 </p>
 
 # RT-SEG — Reasoning Trace Segmentation
