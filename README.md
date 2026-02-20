@@ -1,5 +1,6 @@
-<img src="assets/logo.svg" width="40%" style="max-width: 400px;">
-
+<p align="center">
+  <img src="assets/logo.svg" width="40%" style="max-width: 400px;">
+</p>
 This project requires a configuration file for database authentication.
 
 ### 🔐 Configuration Setup
