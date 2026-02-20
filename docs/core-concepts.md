@@ -1,6 +1,6 @@
 ---
 layout: default
-title: Core Concepts
+title: Core Concepts | Quickstart
 nav_order: 2
 ---
 
@@ -63,7 +63,7 @@ segmentor = RTSeg(
     label_fusion_type="concat",  # or "majority"
     seg_base_unit="clause",
 )
-
+trace = "..."
 offsets, labels = segmentor(trace)
 ```
 
