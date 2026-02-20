@@ -1,6 +1,7 @@
 ---
 layout: default
-title: RT-SEG
+title: RT-Seg
+nav_order: 1
 ---
 
 <p align="center">
