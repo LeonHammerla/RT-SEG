@@ -1,7 +1,8 @@
 ---
 layout: default
 title: Evaluation & Metrics
-nav_order: 9
+parent: Reproducibility
+nav_order: 1
 ---
 
 # Evaluation & Metrics
