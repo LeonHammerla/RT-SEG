@@ -1,8 +1,11 @@
-theme: just-the-docs
-
 title: RT-SEG
 description: Reasoning Trace Segmentation Framework
 markdown: kramdown
 
-# Optional but recommended
+remote_theme: just-the-docs/just-the-docs
+
+plugins:
+  - jekyll-remote-theme
+
+# Optional, but nice
 search_enabled: true
