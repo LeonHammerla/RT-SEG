@@ -3,22 +3,12 @@ description: Reasoning Trace Segmentation Framework
 theme: minima
 markdown: kramdown
 
-nav:
-  - title: Home
-    url: /
-  - title: Installation
-    url: /installation
-  - title: Core Concepts
-    url: /core-concepts
-  - title: Engines
-    url: /engines
-  - title: Fusion
-    url: /fusion
-  - title: Extending
-    url: /extending
-  - title: Reproducibility
-    url: /surrealdb
-  - title: TUI
-    url: /tui
-  - title: TUI (Docker + GPU)
-    url: /tuid
+header_pages:
+  - installation.md
+  - core-concepts.md
+  - engines.md
+  - fusion.md
+  - extending.md
+  - surrealdb.md
+  - tui.md
+  - tuid.md
