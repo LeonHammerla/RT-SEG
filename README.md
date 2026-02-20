@@ -1,104 +1,358 @@
 <p align="center">
   <img src="assets/logo.svg" width="30%" style="max-width: 400px;">
 </p>
-This project requires a configuration file for database authentication.
 
-### 🔐 Configuration Setup
+# RT-SEG — Reasoning Trace Segmentation
 
-Please ensure the `sdb_login.json` file is located in the `/data/` directory with the following structure:
+`rt_seg` is a **Python 3.12.x** package for segmenting *reasoning traces* into coherent chunks and (optionally) assigning a label to each chunk.
 
-```json
-{
-  "user": "", 
-  "pwd": "", 
-  "ns": "NR",
-  "db": "RT",
-  "url": "wss://domain"
-}
+The main entry point is:
 
+```
+RTSeg
+```
 
-# Running RT-SEG as a Dockerized GPU Application
+(from `rt_segmentation.seg_factory`)
 
-This project can be run entirely inside Docker with NVIDIA GPU acceleration.
-
-The container bundles CUDA **user-space libraries** and Python **3.12.3**.  
-Your **host provides the NVIDIA driver**, which is injected into the container at runtime.
+It orchestrates one or more **segmentation engines** and — if multiple engines are used — an **offset aligner** that fuses their boundaries into a single segmentation.
 
 ---
 
-## Host Requirements
+# Installation
 
-You must have:
+## Install from PyPI (once published)
 
-- Linux (recommended)
-- An NVIDIA GPU
-- NVIDIA driver installed (`nvidia-smi` must work)
-- Docker Engine
-- NVIDIA Container Toolkit (for `--gpus all`)
+```bash
+pip install rt_seg
+```
 
-Verify GPU access from Docker:
+## Development Install (repo checkout)
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+---
+
+# Core Concepts
+
+## What `RTSeg` Returns
+
+`RTSeg(trace)` produces:
+
+* `offsets`: `list[tuple[int, int]]` — character offsets into the trace
+* `labels`: `list[str]` — one label per segment
+
+You can reconstruct segments via:
+
+```python
+segments = [trace[s:e] for (s, e) in offsets]
+```
+
+---
+
+## Segmentation Base Unit (`seg_base_unit`)
+
+Most engines operate on a base segmentation first:
+
+* `"clause"` (default) → finer granularity
+* `"sent"` → coarser segmentation
+
+---
+
+# Quickstart — Single Engine
+
+```python
+from rt_segmentation.seg_factory import RTSeg
+from rt_segmentation.rule_split_regex import RTRuleRegex
+
+trace = "First step... Then second step... Finally conclude."
+
+segmentor = RTSeg(
+    engines=RTRuleRegex,
+    seg_base_unit="clause",
+)
+
+offsets, labels = segmentor(trace)
+
+for (s, e), label in zip(offsets, labels):
+    print(label, "=>", trace[s:e])
+```
+
+---
+
+# Multiple Engines + Late Fusion
+
+If you pass multiple engines, you must provide an **aligner**.
+
+```python
+from rt_segmentation.seg_factory import RTSeg
+from rt_segmentation.rule_split_regex import RTRuleRegex
+from rt_segmentation.bertopic_segmentation import RTBERTopicSegmentation
+from rt_segmentation.late_fusion import OffsetFusionGraph
+
+segmentor = RTSeg(
+    engines=[RTRuleRegex, RTBERTopicSegmentation],
+    aligner=OffsetFusionGraph,
+    label_fusion_type="concat",  # or "majority"
+    seg_base_unit="clause",
+)
+
+offsets, labels = segmentor(trace)
+```
+
+## Label Fusion Modes
+
+* `"majority"` — choose most frequent label
+* `"concat"` — concatenate labels (useful for debugging)
+
+---
+
+# Available Engines
+
+## Rule-Based
+
+* `RTRuleRegex`
+* `RTNewLine`
+
+## LLM-Based (Boundary Inference)
+
+* `RTLLMOffsetBased`
+* `RTLLMSegUnitBased`
+* `RTLLMForcedDecoderBased`
+* `RTLLMSurprisal`
+* `RTLLMEntropy`
+* `RTLLMTopKShift`
+* `RTLLMFlatnessBreak`
+
+## Discourse / Reasoning Schemas
+
+* `RTLLMThoughtAnchor`
+* `RTLLMReasoningFlow`
+* `RTLLMArgument`
+
+## Topic / Semantic / NLI
+
+* `RTBERTopicSegmentation`
+* `RTEmbeddingBasedSemanticShift`
+* `RTEntailmentBasedSegmentation`
+* `RTZeroShotSeqClassification`
+* `RTZeroShotSeqClassificationRF`
+* `RTZeroShotSeqClassificationTA`
+
+## PRM-Based
+
+* `RTPRMBase`
+
+---
+
+# Engine Configuration
+
+You can override engine parameters at call time:
+
+```python
+offsets, labels = segmentor(
+    trace,
+    model_name="Qwen/Qwen2.5-7B-Instruct",
+    chunk_size=200,
+)
+```
+
+---
+
+# Available Aligners
+
+* `OffsetFusionGraph`
+* `OffsetFusionFuzzy`
+* `OffsetFusionIntersect`
+* `OffsetFusionMerge`
+* `OffsetFusionVoting`
+
+| Strategy               | Behavior               |
+| ---------------------- | ---------------------- |
+| Intersect              | Conservative           |
+| Merge                  | Permissive             |
+| Voting / Graph / Fuzzy | Balanced (recommended) |
+
+---
+
+# Implementing a Custom Engine
+
+```python
+from typing import Tuple, List
+from rt_segmentation.seg_base import SegBase
+
+class MyEngine(SegBase):
+    @staticmethod
+    def _segment(trace: str, **kwargs) -> Tuple[List[tuple[int, int]], List[str]]:
+        offsets = [(0, len(trace))]
+        labels = ["UNK"]
+        return offsets, labels
+```
+
+## Using Base Offsets
+
+```python
+base_offsets = SegBase.get_base_offsets(trace, seg_base_unit="clause")
+```
+
+---
+
+# Implementing a Custom Aligner
+
+```python
+from typing import List, Tuple
+
+class MyOffsetFusion:
+    @staticmethod
+    def fuse(engine_offsets: List[List[Tuple[int, int]]], **kwargs):
+        return engine_offsets[0]
+```
+
+---
+
+# Running the TUI (Without Docker)
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m tui
+```
+
+If needed:
+
+```bash
+python src/tui.py
+```
+
+---
+
+# SurrealDB (Optional — Reproducible Experiments)
+
+Required only for full experiment pipeline.
+
+---
+
+## 1️⃣ Start SurrealDB (Docker Recommended)
+
+```bash
+docker run --rm -it \
+  -p 8000:8000 \
+  -v "$(pwd)/data:/data" \
+  surrealdb/surrealdb:latest \
+  start --user root --pass root file:/data/surreal.db
+```
+
+Endpoints:
+
+* WebSocket: `ws://127.0.0.1:8000/rpc`
+* HTTP: `http://127.0.0.1:8000`
+
+---
+
+## 2️⃣ Import Database Snapshot
+
+```bash
+surreal import \
+  --endpoint ws://127.0.0.1:8000/rpc \
+  --username root \
+  --password root \
+  --namespace NR \
+  --database RT \
+  ./data/YOUR_EXPORT_FILE.surql
+```
+
+⚠️ Make sure namespace/database match your config.
+
+---
+
+## 3️⃣ Configure `data/sdb_login.json`
+
+```json
+{
+  "user": "root",
+  "pwd": "root",
+  "ns": "NR",
+  "db": "RT",
+  "url": "ws://127.0.0.1:8000/rpc"
+}
+```
+
+---
+
+## 4️⃣ Run Experiment Scripts
+
+```bash
+python src/eval_main.py
+python src/evo.py
+```
+
+---
+
+# Docker + GPU Setup
+
+## Requirements
+
+* Linux
+* NVIDIA GPU
+* NVIDIA driver
+* Docker
+* NVIDIA Container Toolkit
+
+Verify:
 
 ```bash
 nvidia-smi
 docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
+```
 
+---
 
-If the second command prints your GPU table, Docker GPU support is working.
+## CUDA Compatibility Rule
 
-CUDA Compatibility (Important)
+Host driver CUDA ≥ Container CUDA
 
-The container is built on CUDA 12.x.
+| Host | Container | Result |
+| ---- | --------- | ------ |
+| 12.8 | 12.4      | ✅      |
+| 12.8 | 13.1      | ❌      |
+| 13.x | 12.4      | ✅      |
 
-Your host driver must support at least CUDA 12.x.
+---
 
-This is a one-way compatibility rule:
+## Build Image
 
-Host driver CUDA version ≥ Container CUDA version
+```bash
+docker build -f docker/Dockerfile -t rt-seg:gpu .
+```
 
-Examples:
+---
 
-Host Driver	Container CUDA	Result
-12.8	12.4	✅ Works
-12.8	12.8	✅ Works
-12.8	13.1	❌ Fails
-13.x	12.4	✅ Works
+## Run
 
-Check your host driver:
-
-nvidia-smi
-
-
-If you see:
-
-nvidia-container-cli: requirement error: unsatisfied condition: cuda>=...
-
-
-your container CUDA is newer than your driver. Either update your driver or rebuild using an older CUDA base.
-
-This repository intentionally targets CUDA 12.x for broad compatibility.
-
-Build the Docker Image
-
-From the project root:
-
-docker build -f docker/Dockerfile -t mytui:gpu .
-
-
-This will:
-
-Build Python 3.12.3 from source
-
-Compile native dependencies (e.g. hdbscan)
-
-Produce a slim runtime image
-
-Run the Application
-
-Use the provided launcher script:
-
+```bash
 ./run_tui_app_docker.sh
+```
 
+Internally:
 
-Internally this runs:
+```bash
+docker run -it --rm --gpus all rt-seg:gpu
+```
 
-docker run -it --rm --gpus all mytui:gpu
+---
+
+# Summary
+
+RT-SEG provides:
+
+* Modular segmentation engines
+* Late fusion strategies
+* LLM-based reasoning segmentation
+* Reproducible DB-backed experiments
+* GPU Docker deployment
+
+---
