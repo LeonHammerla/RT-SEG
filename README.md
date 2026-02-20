@@ -65,8 +65,8 @@ Most engines operate on a base segmentation first:
 # Quickstart — Single Engine
 
 ```python
-from rt_segmentation.seg_factory import RTSeg
-from rt_segmentation.rule_split_regex import RTRuleRegex
+from rt_seg import RTSeg
+from rt_seg import RTRuleRegex
 
 trace = "First step... Then second step... Finally conclude."
 
@@ -88,10 +88,10 @@ for (s, e), label in zip(offsets, labels):
 If you pass multiple engines, you must provide an **aligner**.
 
 ```python
-from rt_segmentation.seg_factory import RTSeg
-from rt_segmentation.rule_split_regex import RTRuleRegex
-from rt_segmentation.bertopic_segmentation import RTBERTopicSegmentation
-from rt_segmentation.late_fusion import OffsetFusionGraph
+from rt_seg.seg_factory import RTSeg
+from rt_seg.rule_split_regex import RTRuleRegex
+from rt_seg.bertopic_segmentation import RTBERTopicSegmentation
+from rt_seg.late_fusion import OffsetFusionGraph
 
 segmentor = RTSeg(
     engines=[RTRuleRegex, RTBERTopicSegmentation],
@@ -117,22 +117,29 @@ offsets, labels = segmentor(trace)
 * `RTRuleRegex`
 * `RTNewLine`
 
-## LLM-Based (Boundary Inference)
+## Probabilistic
 
-* `RTLLMOffsetBased`
-* `RTLLMSegUnitBased`
 * `RTLLMForcedDecoderBased`
 * `RTLLMSurprisal`
 * `RTLLMEntropy`
 * `RTLLMTopKShift`
 * `RTLLMFlatnessBreak`
 
-## Discourse / Reasoning Schemas
+## LLM Discourse / Reasoning Schemas
 
 * `RTLLMThoughtAnchor`
 * `RTLLMReasoningFlow`
 * `RTLLMArgument`
 
+## LLM 
+
+* `RTLLMOffsetBased`
+* `RTLLMSegUnitBased`
+
+## PRM-Based
+
+* `RTPRMBase`
+  
 ## Topic / Semantic / NLI
 
 * `RTBERTopicSegmentation`
@@ -141,10 +148,6 @@ offsets, labels = segmentor(trace)
 * `RTZeroShotSeqClassification`
 * `RTZeroShotSeqClassificationRF`
 * `RTZeroShotSeqClassificationTA`
-
-## PRM-Based
-
-* `RTPRMBase`
 
 ---
 
@@ -182,7 +185,7 @@ offsets, labels = segmentor(
 
 ```python
 from typing import Tuple, List
-from rt_segmentation.seg_base import SegBase
+from rt_seg import SegBase
 
 class MyEngine(SegBase):
     @staticmethod
