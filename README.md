@@ -23,7 +23,7 @@ It orchestrates one or more **segmentation engines** and — if multiple engines
 ## Install from PyPI (once published)
 
 ```bash
-pip install rt_seg
+pip install rt-seg
 ```
 
 ## Development Install (repo checkout)

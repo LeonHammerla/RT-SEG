@@ -9,7 +9,7 @@ nav_order: 3
 ## Install from PyPI (once published)
 
 ```bash
-pip install rt_seg
+pip install rt-seg
 ```
 
 ## Development Install (repo checkout)
