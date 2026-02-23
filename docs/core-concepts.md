@@ -6,6 +6,10 @@ nav_order: 2
 
 # Core Concepts
 
+<p align="center">
+  <img src="assets/arch.svg" width="100%" />
+</p>
+
 ## What `RTSeg` Returns
 
 `RTSeg(trace)` produces:
