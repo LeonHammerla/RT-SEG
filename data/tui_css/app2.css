@@ -1,0 +1,90 @@
+Screen {
+    background: $surface;
+}
+
+InputPanel1 {
+    width: 25%;
+    padding: 0 1;
+    border-right: tall $primary;
+}
+
+InputPanel2 {
+    width: 25%;
+    padding: 0 1;
+    border-left: tall $primary;
+}
+
+#selection-container {
+    height: auto;
+    margin-bottom: 1;
+}
+
+#selection-container-aligner {
+    height: auto;
+    margin-bottom: 1;
+}
+
+#method-label {
+    text-style: italic;
+    color: $text-muted;
+    margin-top: 1;
+}
+
+#aligner-select {
+    height: 3;
+}
+
+/* Use 1fr to ensure it fills the remaining space between the dropdown and button */
+TextArea#input {
+    height: 1fr;
+    border: tall $primary;
+    margin: 1 0;
+}
+
+Button#submit {
+    width: 100%;
+    height: 3;
+}
+
+ResultsPanel {
+    width: 50%;
+    height: 1fr;
+    padding: 1 2;
+}
+
+MiddlePanel {
+    height: 100%;
+    width: 1fr;   /* take remaining width between the two 25% side panels */
+}
+
+MiddlePanel > ResultsPanel {
+    height: 1fr;  /* fill all remaining vertical space above the button */
+    width: 100%;
+}
+
+#results-table {
+    width: 100%;  /* let the rendered text span the full results width */
+}
+
+#title {
+    margin: 1 0;
+    text-style: bold;
+    color: $accent;
+}
+
+#method-select {
+    height: auto;
+    max-height: 8;
+    padding: 1;
+    border: round $primary;
+}
+
+#binary-row {
+    height: auto;
+    width: 100%;
+}
+
+.binary-col {
+    width: 1fr;
+    height: auto;
+}
