@@ -197,7 +197,10 @@ class RTSeg:
         engine_labels = []
         for engine in self.engines:
             for kwarg in kwargs:
-                self.default_kwargs[engine][kwarg] = kwargs[kwarg]
+                try:
+                    self.default_kwargs[engine][kwarg] = kwargs[kwarg]
+                except KeyError:
+                    self.default_kwargs[engine] = {kwarg: kwargs[kwarg]}
             offsets, labels = engine._segment(trace, **self.default_kwargs[engine])
             engine_offsets.append(offsets)
             engine_labels.append(labels)

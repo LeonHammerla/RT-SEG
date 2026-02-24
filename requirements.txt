@@ -131,6 +131,6 @@ yarl==1.22.0
 seaborn
 KDEpy
 
-
-
+# notebook
+# ipywidgets
 # pip install --extra-index-url=https://pypi.nvidia.com cuml-cu12==24.12.*
