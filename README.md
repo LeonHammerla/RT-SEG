@@ -18,6 +18,12 @@ It orchestrates one or more **segmentation engines** and — if multiple engines
 
 ---
 
+
+https://github.com/user-attachments/assets/a2f051b6-5c8d-4702-94c4-d84f1d06bc48
+
+
+---
+
 # Installation
 
 ## Install from PyPI (once published)
