@@ -10,7 +10,7 @@ description = "rt_seg is a Python 3.12.x package for segmenting reasoning traces
 readme = "README.md"
 requires-python = ">=3.12"
 license = { file = "LICENSE" }
-authors = [{ name = "Leon Hammerla"}, { name = "Bhuvanesh Verma" }]
+authors = [{ name = "Leon Hammerla"}, { name = "Bhuvanesh Verma" }, { name = "Alexander Mehler" }]
 
 dependencies = [
   "accelerate",
@@ -163,8 +163,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/LeonHammerla/RT-SEG"
-Issues = "https://github.com/LeonHammerla/RT-SEG/issues"
+Homepage = "https://github.com/texttechnologylab/RT-SEG"
+Issues = "https://github.com/texttechnologylab/RT-SEG/issues"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
