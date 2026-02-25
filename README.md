@@ -18,7 +18,9 @@ It orchestrates one or more **segmentation engines** and — if multiple engines
 
 ---
 
-![Demo](docs/assets/rt_seg_demo.mp4)
+
+https://github.com/user-attachments/assets/396e4684-1792-4367-b275-ac515e6abbee
+
 
 ---
 
