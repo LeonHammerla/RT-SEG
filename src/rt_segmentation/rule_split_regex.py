@@ -1,10 +1,8 @@
 from typing import List, Dict, Tuple, Literal, Any
-from surrealdb import Surreal, RecordID
 from typing import List
 import re
 from nltk.tokenize import PunktSentenceTokenizer
 
-from .seg_utils import bp, sdb_login, load_prompt, load_example_trace
 from .seg_base import SegBase
 
 

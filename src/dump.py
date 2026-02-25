@@ -27,12 +27,15 @@ from rt_segmentation import (RTLLMOffsetBased,
                              RTEntailmentBasedSegmentation,
                              RTEmbeddingBasedSemanticShift,
                              bp, sdb_login, load_prompt, load_example_trace,
-                             export_gold_set, export_rf_data_gold_set, upload_rf_data,
                              OffsetFusionGraph,
                              RTSeg,
                              OffsetFusion,
                              RTZeroShotSeqClassificationTA,
-                             RTZeroShotSeqClassificationRF, import_annotated_data)
+                             RTZeroShotSeqClassificationRF)
+
+from eval_utils import (import_annotated_data,
+                         export_gold_set,
+                         export_rf_data_gold_set)
 
 
 def rename():

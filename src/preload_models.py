@@ -1,14 +1,3 @@
-import random
-import traceback
-from typing import List, Tuple, Dict, Literal
-import colorsys
-from rich.text import Text
-from rich.markup import escape
-from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual import on, events
-from textual.widgets import Header, Footer, Static, Button, TextArea, Label, Select, SelectionList, RadioButton, RadioSet
-
 from rt_segmentation import (RTLLMOffsetBased,
                              RTLLMForcedDecoderBased,
                              RTLLMSegUnitBased,
@@ -24,7 +13,6 @@ from rt_segmentation import (RTLLMOffsetBased,
                              RTLLMEntropy,
                              RTLLMTopKShift,
                              RTLLMFlatnessBreak,
-                             export_gold_set,
                              RTEmbeddingBasedSemanticShift,
                              RTPRMBase,
                              RTEntailmentBasedSegmentation,

@@ -2,12 +2,10 @@ import json
 import os
 
 from surrealdb import Surreal, RecordID
-import random
 
 from tqdm import tqdm
 
 from .seg_utils import bp, sdb_login, load_prompt, load_example_trace
-from .seg_base import SegBase
 
 
 def upload_rf_data(clear: bool = True):

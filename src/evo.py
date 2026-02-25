@@ -1,24 +1,3 @@
-"""
-Adjusted for your new search space:
-
-- Search variables:
-  1) subset of ALL_MODELS (now strings like "<ClassName>_clause" or "<ClassName>_sent") -> bitmask
-  2) one ALIGNERS element -> aligner_idx
-
-- BASE_UNITS removed
-
-Persistence:
-- SQLite with PRIMARY KEY = (mask, aligner_idx)
-- Also stores approach_id = get_name(mods, aligner) as the "id" you requested
-- Crash-safe + resume: INSERT OR IGNORE
-
-Progress:
-- tqdm per epoch (generation)
-
-IMPORTANT:
-- With spawn, do NOT load data at import time. Worker initializer loads once per worker.
-"""
-
 import os
 import time
 import sqlite3
@@ -29,26 +8,19 @@ import numpy as np
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 
-# ------------------- YOUR PROJECT IMPORTS (as in your snippet) -------------------
 import copy
 from functools import lru_cache
 
 from surrealdb import Surreal
-from rt_segmentation.seg_eval_utils import clean_offsets, evaluate_approaches_bounding_similarity
-from rt_segmentation import (
-    OffsetFusionFuzzy, OffsetFusionIntersect, OffsetFusionMerge, OffsetFusionGraph, OffsetFusionVoting,
-    sdb_login, bp,
-)
-# ------------------- IMPORT YOUR PROJECT CODE -------------------
-# IMPORTANT: do NOT call load_data() at import time if using spawn.
-# We'll load data per-worker in an initializer.
+from eval_utils import clean_offsets, evaluate_approaches_bounding_similarity
+
 import copy
 from functools import lru_cache
 
 from tqdm import tqdm
 from surrealdb import Surreal
 
-from rt_segmentation.seg_eval_utils import clean_offsets, evaluate_approaches_bounding_similarity
+
 from rt_segmentation import (
     OffsetFusionFuzzy, OffsetFusionIntersect, OffsetFusionMerge, OffsetFusionGraph, OffsetFusionVoting,
     SegBase,
@@ -74,7 +46,6 @@ from rt_segmentation import (
     sdb_login, bp,
 )
 
-# ----------------------------- USER TO FILL THESE -----------------------------
 ALL_MODELS: List[Any] = [
     RTLLMOffsetBased,
     RTLLMForcedDecoderBased,
@@ -103,7 +74,6 @@ ALL_MODELS = ALL_MODELS_CL + ALL_MODELS_SE
 ALIGNERS = [OffsetFusionGraph, OffsetFusionFuzzy, OffsetFusionIntersect, OffsetFusionMerge, OffsetFusionVoting]
 
 
-# ----------------------- GLOBALS (worker-loaded) -----------------------
 BASE_DATA = None
 BASE_DATA_HUMAN = None
 TRACES = None
@@ -171,12 +141,10 @@ def score(mods: List[str], aligner) -> float:
 def get_name(mods: List[str], aligner) -> str:
     return f"{'_'.join(mods)}_{aligner.__name__}"
 
-# ----------------------- CONFIG ENCODING -----------------------
 N_MODELS = len(ALL_MODELS)
 N_ALIGNERS = len(ALIGNERS)
 
 
-# ----------------------- GLOBALS (worker-loaded) -----------------------
 BASE_DATA = None
 BASE_DATA_HUMAN = None
 TRACES = None
@@ -243,7 +211,6 @@ def get_name(mods: List[str], aligner) -> str:
     return f"{'_'.join(mods)}_{aligner.__name__}"
 
 
-# ----------------------- CONFIG ENCODING -----------------------
 N_MODELS = len(ALL_MODELS)
 N_ALIGNERS = len(ALIGNERS)
 
@@ -263,7 +230,6 @@ def decode_config(cfg: ConfigKey) -> Tuple[List[str], Any]:
     return mods, aligner
 
 
-# ----------------------- WORKER INIT + EVAL -----------------------
 def _worker_init():
     global BASE_DATA, BASE_DATA_HUMAN, TRACES
     if BASE_DATA is None:
@@ -280,7 +246,6 @@ def _eval_one(cfg_tup: Tuple[int, int]) -> Tuple[int, int, str, float]:
     return (mask, aligner_idx, approach_id, float(s))
 
 
-# ----------------------- SQLITE STORAGE -----------------------
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS results (
   mask        INTEGER NOT NULL,
@@ -330,7 +295,6 @@ def get_unique_count(conn: sqlite3.Connection) -> int:
     return int(n)
 
 
-# ----------------------- EVOLUTIONARY SEARCH -----------------------
 def random_mask(rng: np.random.Generator, p_on: float = 0.25) -> int:
     while True:
         bits = rng.random(N_MODELS) < p_on

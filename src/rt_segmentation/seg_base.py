@@ -1,14 +1,7 @@
-import time
 from abc import ABC, abstractmethod
-from functools import lru_cache
 from typing import List, Tuple, Any, Literal
 
-from nltk import PunktSentenceTokenizer
-from surrealdb import Surreal, RecordID
-from tqdm import tqdm
-
 from .base_segmentor import UnitSegmentor
-from .seg_utils import bp, sdb_login, load_prompt, load_example_trace
 
 
 class SegBase(ABC):

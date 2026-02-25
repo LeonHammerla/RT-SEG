@@ -5,10 +5,9 @@ import pandas as pd
 from matplotlib import ticker
 import matplotlib.lines as mlines
 from matplotlib.patches import FancyBboxPatch, Rectangle
-from scipy.stats import gaussian_kde
 from KDEpy import TreeKDE
 
-from .seg_utils import bp
+from rt_segmentation import bp
 from .seg_eval_utils import score_approaches_triadic_boundary_similarity_complete_ta, \
     score_approaches_triadic_boundary_similarity_complete_rf, get_single_engine_results_ta_and_rf, \
     extract_all_from_database

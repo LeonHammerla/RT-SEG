@@ -1,15 +1,11 @@
 import copy
-import json
 import sqlite3
 from functools import lru_cache
 from typing import List, Tuple, Dict, Optional, Any, Literal
-
-from nltk.metrics import scores
 from nltk.metrics.agreement import AnnotationTask
 import numpy as np
 import pandas as pd
 from itertools import combinations
-
 from surrealdb import Surreal
 from tqdm import tqdm
 

@@ -5,7 +5,6 @@ import spacy
 from functools import lru_cache
 
 import stanza
-from sympy.categories.baseclasses import Class
 
 
 
