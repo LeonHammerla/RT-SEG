@@ -92,7 +92,8 @@ class RTLLMArgument(SegBase):
             text = tokenizer.apply_chat_template(
                 messages,
                 tokenize=False,
-                add_generation_prompt=True
+                add_generation_prompt=True,
+                enable_thinking=False,
             )
             model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 

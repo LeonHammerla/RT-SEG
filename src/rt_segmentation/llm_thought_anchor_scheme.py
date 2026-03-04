@@ -36,7 +36,7 @@ class RTLLMThoughtAnchor(SegBase):
             raise ValueError("Chunk length must be positive")
         return [s[i:i + n] for i in range(0, len(s), n)]
 
-    @staticmethod
+    """@staticmethod
     def _trace_pass(trace: str,
                  prompt: str,
                  system_prompt: str,
@@ -53,7 +53,8 @@ class RTLLMThoughtAnchor(SegBase):
         text = tokenizer.apply_chat_template(
             messages,
             tokenize=False,
-            add_generation_prompt=True
+            add_generation_prompt=True,
+            enable_thinking=False,
         )
         model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
@@ -66,7 +67,7 @@ class RTLLMThoughtAnchor(SegBase):
         ]
 
         response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
-        return response
+        return response"""
 
     @staticmethod
     def _segment(
@@ -123,7 +124,8 @@ class RTLLMThoughtAnchor(SegBase):
             text = tokenizer.apply_chat_template(
                 messages,
                 tokenize=False,
-                add_generation_prompt=True
+                add_generation_prompt=True,
+                enable_thinking=False,
             )
             model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
@@ -140,6 +142,7 @@ class RTLLMThoughtAnchor(SegBase):
                     ]
 
                     response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+                    # print(response)
                     label = json.loads(response)["label"]
                     if label:
                         labels.append(label)

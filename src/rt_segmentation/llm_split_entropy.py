@@ -68,7 +68,8 @@ class RTLLMEntropy(SegBase):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": trace},
         ]
-        prompt_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        prompt_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True,
+            enable_thinking=False,)
         prompt_ids = tokenizer.encode(prompt_text, add_special_tokens=False)
         trace_ids = tokenizer.encode(trace, add_special_tokens=False)
         input_ids = torch.tensor([prompt_ids], device=model.device)
