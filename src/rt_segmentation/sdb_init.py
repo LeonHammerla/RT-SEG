@@ -4,7 +4,7 @@ import os
 
 from datasets import load_dataset
 from surrealdb import Surreal, RecordID
-
+import re
 from tqdm import tqdm
 
 from .seg_utils import bp, sdb_login, load_prompt, load_example_trace
@@ -110,6 +110,8 @@ def load_rf_questions():
     return questions, traces, nodes
 
 
+def contains_chinese(text: str) -> bool:
+    return bool(re.search(r'[\u4e00-\u9fff]', text))
 
 def upload_rf_data_extended(clear: bool = True, n_samples: int = 100):
     login_data = sdb_login()
@@ -156,12 +158,15 @@ def upload_rf_data_extended(clear: bool = True, n_samples: int = 100):
             break
         if sample["rt_len"] < 200:
             continue
+        if contains_chinese(sample["conversations"][1]["value"]):
+            continue
         if sample["conversations"][0]["value"] in rf_questions:
             pass
         else:
             all_samples.append(sample["conversations"][0]["value"])
             all_traces.append(get_reasoning_trace(sample))
             all_nodes.append(None)
+            rf_questions.add(sample["conversations"][0]["value"])
 
     print(len(all_samples), len(all_traces), len(all_nodes))
     print([len(tr) for tr in all_traces])

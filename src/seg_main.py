@@ -170,6 +170,7 @@ if __name__ == "__main__":
 
     # import_annotated_data()
 
-    main_exp()
+    main_exp(seg_base_unit="sent")
+    main_exp(seg_base_unit="clause")
     # check()
     # upload_rf_data_extended()
