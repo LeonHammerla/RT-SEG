@@ -6,6 +6,8 @@ import multiprocessing as mp
 from surrealdb import Surreal, RecordID
 from tqdm import tqdm
 
+from rt_segmentation.sdb_init import upload_rf_data_extended
+
 mp.set_start_method('spawn', force=True)
 
 
@@ -169,4 +171,5 @@ if __name__ == "__main__":
     # import_annotated_data()
 
     # main_exp()
-    check()
+    # check()
+    upload_rf_data_extended()

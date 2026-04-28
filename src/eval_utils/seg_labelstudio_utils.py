@@ -221,7 +221,36 @@ def import_annotated_data():
 
 
 
+def export_rf_data_gold_set_extended():
+    """
+    export extended dataset for labelstudio
+    :return:
+    """
+    login_data = sdb_login()
+    query = "select * from (select *, ->has_reasoning_flow_gold->reasoning_flow_gold.id as rf from rtrace) where rf == []"
+
+    ds = []
+    with Surreal(login_data["url"]) as db:
+        db.signin({"username": login_data["user"], "password": login_data["pwd"]})
+        db.use(login_data["ns"], login_data["db"])
+
+        records = db.query(query)
+
+        for record in records:
+            full_html, offsets = export_rt_rf(record["rt"])
+            ds.append({
+                "id": record["id"].id,
+                "data": {"html": full_html,
+                         "offsets": offsets,
+                         "origin_id": record["id"].id}
+            })
+
+    print(len(ds))
+
+    with open(f"{bp()}/data/label_studio/ls_data_rf_extended.json", "w") as f:
+        json.dump(ds, f, indent=4)
 
 
 if __name__ == "__main__":
-    export_gold_set()
+    # export_gold_set()
+    export_rf_data_gold_set_extended()
