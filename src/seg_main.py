@@ -97,8 +97,8 @@ def run_single_model_exp(model_list, aligner, seg_base_unit):
     try:
         rt_seg.sdb_segment_ds(
             exp_id=rt_seg.exp_id,
-            clear=True,
-            db="RT_RF",
+            clear=False,
+            db=login_data["db"],
             seg_base_unit=seg_base_unit
         )
         return f"SUCCESS: {rt_seg.exp_id}"
@@ -111,25 +111,25 @@ def main_exp(aligner: OffsetFusion = OffsetFusionGraph,
 
 
     models = [
-        #[RTLLMOffsetBased],
-      # [RTLLMForcedDecoderBased],
+        [RTLLMOffsetBased],
+        [RTLLMForcedDecoderBased],
         [RTLLMSegUnitBased],
-        #[RTRuleRegex],
-        #[RTNewLine],
-        #[RTPRMBase],
-        #[RTEntailmentBasedSegmentation],
-        #[RTLLMEntropy],
-        #[RTLLMTopKShift],
-        #[RTLLMFlatnessBreak],
-        #[RTLLMSurprisal],
-        #[RTBERTopicSegmentation],
-        #[RTZeroShotSeqClassification],
-        #[RTLLMReasoningFlow],
-        #[RTLLMArgument],
-        #[RTLLMThoughtAnchor],
-        #[RTEmbeddingBasedSemanticShift],
-        #[RTZeroShotSeqClassificationRF],
-        #[RTZeroShotSeqClassificationTA],
+        [RTRuleRegex],
+        [RTNewLine],
+        [RTPRMBase],
+        [RTEntailmentBasedSegmentation],
+        [RTLLMEntropy],
+        [RTLLMTopKShift],
+        [RTLLMFlatnessBreak],
+        [RTLLMSurprisal],
+        [RTBERTopicSegmentation],
+        [RTZeroShotSeqClassification],
+        [RTLLMReasoningFlow],
+        [RTLLMArgument],
+        [RTLLMThoughtAnchor],
+        [RTEmbeddingBasedSemanticShift],
+        [RTZeroShotSeqClassificationRF],
+        [RTZeroShotSeqClassificationTA],
        # [RTZeroShotSeqClassificationRF, RTZeroShotSeqClassificationTA],
         #[RTLLMReasoningFlow, RTLLMThoughtAnchor],
         #[RTLLMReasoningFlow, RTLLMThoughtAnchor, RTLLMArgument],
@@ -141,8 +141,8 @@ def main_exp(aligner: OffsetFusion = OffsetFusionGraph,
     worker_func = partial(run_single_model_exp, aligner=aligner, seg_base_unit=seg_base_unit)
 
 
-    with mp.Pool(processes=2) as pool:
-        results = pool.map(worker_func, models)
+    with mp.Pool(processes=5, maxtasksperchild=1) as pool:
+        results = pool.map(worker_func, models, chunksize=1)
 
     for result in results:
         print(result)
@@ -170,6 +170,6 @@ if __name__ == "__main__":
 
     # import_annotated_data()
 
-    # main_exp()
+    main_exp()
     # check()
-    upload_rf_data_extended()
+    # upload_rf_data_extended()
