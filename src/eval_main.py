@@ -136,16 +136,10 @@ if __name__ == "__main__":
         [RTEmbeddingBasedSemanticShift],
         [RTZeroShotSeqClassificationRF],
         [RTZeroShotSeqClassificationTA],
-        [RTZeroShotSeqClassificationRF, RTZeroShotSeqClassificationTA],
-        [RTLLMReasoningFlow, RTLLMThoughtAnchor],
-        [RTLLMReasoningFlow, RTLLMThoughtAnchor, RTLLMArgument],
-        [RTLLMThoughtAnchor, RTZeroShotSeqClassificationTA],
-        [RTLLMReasoningFlow, RTZeroShotSeqClassificationRF],
-        [RTNewLine, RTRuleRegex, RTLLMSegUnitBased]
     ]
     aa: OffsetFusion = OffsetFusionGraph
     ss: Literal["clause", "sent"] = "clause"
-    # score_approaches_triadic_boundary_similarity(mm, aa, ss)
+    score_approaches_triadic_boundary_similarity(mm, aa, ss)
 
     # score_approaches_triadic_boundary_similarity_complete()
     # plot_score_vs_time_ta()
