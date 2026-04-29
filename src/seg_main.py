@@ -141,7 +141,7 @@ def main_exp(aligner: OffsetFusion = OffsetFusionGraph,
     worker_func = partial(run_single_model_exp, aligner=aligner, seg_base_unit=seg_base_unit)
 
 
-    with mp.Pool(processes=5, maxtasksperchild=1) as pool:
+    with mp.Pool(processes=3, maxtasksperchild=1) as pool:
         results = pool.map(worker_func, models, chunksize=1)
 
     for result in results:

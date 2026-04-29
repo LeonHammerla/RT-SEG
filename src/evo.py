@@ -85,7 +85,8 @@ def load_data(targets: Tuple[str, ...]):
     with Surreal(login_data["url"]) as db:
         db.signin({"username": login_data["user"], "password": login_data["pwd"]})
         db.use(login_data["ns"], login_data["db"])
-        res = db.query("SELECT *, ->?->?.* from rtrace")
+        # res = db.query("SELECT *, ->?->?.* from rtrace")
+        res = db.query("""SELECT *, {"->?": array::complement(->?->?.*, ->has_reasoning_flow_gold->?.*)} AS `->?` FROM rtrace WHERE array::len(array::complement(->?->?, ->has_reasoning_flow_gold->?)) == 40""")
 
     traces = []
     human_anno_data = dict()
