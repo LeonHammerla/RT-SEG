@@ -1358,4 +1358,4 @@ def extract_all_from_database():
 
 
 if __name__ == "__main__":
-    pass
+    print(score_approaches_triadic_boundary_similarity_one_model("RTLLMFlatnessBreak_sent"))

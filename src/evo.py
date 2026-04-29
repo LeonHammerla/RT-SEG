@@ -6,12 +6,6 @@ from typing import List, Tuple, Optional, Any
 
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from tqdm import tqdm
-
-import copy
-from functools import lru_cache
-
-from surrealdb import Surreal
 from eval_utils import clean_offsets, evaluate_approaches_bounding_similarity
 
 import copy

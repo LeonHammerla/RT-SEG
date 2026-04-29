@@ -235,6 +235,10 @@ def extract_first_index(xpath_string):
 
 
 def import_annotated_data():
+    """
+    import the annotated results into the database
+    :return:
+    """
     anno_id_map = {"ve": 8, "ha": 1}
     id_anno_map = {v: k for k, v in anno_id_map.items()}
 
@@ -323,6 +327,10 @@ def export_rf_data_gold_set_extended():
 
 
 def import_annotated_data_extended():
+    """
+    Improt the extended annotations into the database
+    :return:
+    """
     anno_id_map = {"ve": 8, "ha": 1}
     id_anno_map = {v: k for k, v in anno_id_map.items()}
 
