@@ -1,7 +1,7 @@
 import json
 import os
 import random
-from typing import List, Dict, Tuple, Literal, Any
+from typing import List, Dict, Tuple, Literal, Any, Sequence
 from surrealdb import Surreal, RecordID
 import re
 from tqdm import tqdm
@@ -135,6 +135,76 @@ def export_rt_rf(trace: str,
     return full_html, offsets
 
 
+def reverse_export_rt_rf(offsets: Sequence[Sequence[int]], html: str) -> str:
+    """
+    Reconstruct the original reasoning trace from ``export_rt_rf`` output.
+
+    The offsets are treated as the source of truth for the original character
+    positions. This function intentionally validates the round trip strictly,
+    because returning a shifted or partially reconstructed trace would corrupt
+    downstream annotations.
+    """
+    box_style = (
+        "border: 1px solid #d1d5db; "
+        "border-radius: 8px; "
+        "padding: 16px; "
+        "background: #ffffff; "
+        "box-shadow: 0 2px 4px rgba(0,0,0,0.08); "
+        "font-family: system-ui, sans-serif; "
+        "line-height: 1.6;"
+    )
+    normalized_html = html.replace("<\\/", "</")
+    opening = f'<div style="{box_style}">'
+    closing = "</div></div>"
+
+    segments = []
+    cursor = 0
+    while True:
+        start = normalized_html.find(opening, cursor)
+        if start == -1:
+            break
+
+        segment_start = start + len(opening)
+        segment_end = normalized_html.find(closing, segment_start)
+        if segment_end == -1:
+            raise ValueError("Malformed export_rt_rf html: missing segment closing div.")
+
+        segment = normalized_html[segment_start:segment_end].replace('\\"', '"')
+        segments.append(segment)
+        cursor = segment_end + len(closing)
+
+    if len(segments) != len(offsets):
+        raise ValueError(
+            f"Segment count mismatch: html contains {len(segments)} segments, "
+            f"offsets contain {len(offsets)}."
+        )
+
+    trace_parts = []
+    expected_start = 0
+    for i, (offset, segment) in enumerate(zip(offsets, segments)):
+        if len(offset) < 2:
+            raise ValueError(f"Invalid offset at index {i}: expected at least two values.")
+
+        start, end = int(offset[0]), int(offset[-1])
+        if start != expected_start:
+            raise ValueError(
+                f"Offsets do not form a contiguous trace at index {i}: "
+                f"expected start {expected_start}, got {start}."
+            )
+        if end < start:
+            raise ValueError(f"Invalid offset at index {i}: end {end} is before start {start}.")
+        if len(segment) != end - start:
+            raise ValueError(
+                f"Segment length mismatch at index {i}: html segment has length "
+                f"{len(segment)}, offset span has length {end - start}."
+            )
+
+        trace_parts.append(segment)
+        expected_start = end
+
+    return "".join(trace_parts)
+
+
 def export_rf_data_gold_set():
     ds = []
     files = os.listdir(f"{bp()}/data/label_studio/rf_data")
@@ -251,6 +321,109 @@ def export_rf_data_gold_set_extended():
         json.dump(ds, f, indent=4)
 
 
+
+def import_annotated_data_extended():
+    anno_id_map = {"ve": 8, "ha": 1}
+    id_anno_map = {v: k for k, v in anno_id_map.items()}
+
+    login_data = sdb_login()
+    with open(f"{bp()}/data/label_studio/annotated_data.json", "r") as f:
+        data = json.load(f)
+
+    with Surreal(login_data["url"]) as db:
+        db.signin({"username": login_data["user"], "password": login_data["pwd"]})
+        db.use(login_data["ns"], login_data["db"])
+        for (k, v) in anno_id_map.items():
+            db.query(f"REMOVE TABLE thought_anchor_gold_{k};")
+            db.query(f"DEFINE TABLE thought_anchor_gold_{k} SCHEMALESS;")
+            db.query(f"DEFINE INDEX idx_id ON thought_anchor_gold_{k} FIELDS id;")
+
+            db.query(f"REMOVE TABLE has_thought_anchor_gold_{k};")
+            db.query(f"DEFINE TABLE has_thought_anchor_gold_{k} SCHEMALESS TYPE RELATION IN rtrace OUT thought_anchor_gold_{k};")
+            db.query(f"DEFINE INDEX idx_rt_id ON has_thought_anchor_gold_{k} FIELDS id;")
+            db.query(f"DEFINE INDEX idx_rt_in ON has_thought_anchor_gold_{k} FIELDS in;")
+            db.query(f"DEFINE INDEX idx_rt_out ON has_thought_anchor_gold_{k} FIELDS out;")
+
+    with Surreal(login_data["url"]) as db:
+        db.signin({"username": login_data["user"], "password": login_data["pwd"]})
+        db.use(login_data["ns"], login_data["db"])
+
+        records = db.query("select * from rtrace")
+
+        for sample in tqdm(data, desc="Uploading Results"):
+            sample_offsets = sample["data"]["offsets"]
+            sample_html = sample["data"]["html"]
+            rtrace = reverse_export_rt_rf(sample_offsets, sample_html)
+
+            target = []
+            for rec in records:
+                if rec["rt"] == rtrace:
+                    target.append(rec)
+            if len(target) == 0 or len(target) > 1:
+                raise ValueError(f"Multiple/No records found for rtrace: {rtrace}")
+            else:
+                target = target[0]
+                sample_id = target["id"].id
+
+                for annotation in sample["annotations"]:
+                    sample_annotator_id = annotation["completed_by"]
+                    annotation_offsets = []
+                    annotation_labels = []
+                    for result in annotation["result"]:
+                        start_clause = extract_first_index(result["value"]["start"]) - 1
+                        end_clause = extract_first_index(result["value"]["end"]) - 1
+
+                        start_offset = sample_offsets[start_clause][0] + result["value"]["startOffset"]
+                        end_offset = sample_offsets[end_clause][0] + result["value"]["endOffset"]
+                        annotation_offsets.append((start_offset, end_offset))
+                        annotation_labels.append(result["value"]["hypertextlabels"])
+
+                    split_id = RecordID(f"thought_anchor_gold_{id_anno_map[sample_annotator_id]}", sample_id)
+                    db.upsert(split_id, {"split": annotation_offsets, "labels": annotation_labels})
+                    db.insert_relation(f"has_thought_anchor_gold_{id_anno_map[sample_annotator_id]}", {"in": target["id"], "out": split_id})
+                    for offset in annotation_offsets:
+                        print(rec["rt"][offset[0]:offset[1]])
+                        print(20*"-")
+
+    anno_id_map = {"ve": 7, "ha": 1}
+    id_anno_map = {v: k for k, v in anno_id_map.items()}
+    with open(f"{bp()}/data/label_studio/extended_results.json", "r") as f:
+        data = json.load(f)
+
+    with Surreal(login_data["url"]) as db:
+        db.signin({"username": login_data["user"], "password": login_data["pwd"]})
+        db.use(login_data["ns"], login_data["db"])
+        for sample in tqdm(data, desc="Uploading Results"):
+            sample_offsets = sample["data"]["offsets"]
+            sample_id = sample["data"]["origin_id"]
+
+
+            record_id = RecordID("rtrace", sample_id)
+
+            rec = db.query(f"SELECT * FROM {record_id};")[0]
+
+            for annotation in sample["annotations"]:
+                sample_annotator_id = annotation["completed_by"]
+                annotation_offsets = []
+                annotation_labels = []
+                for result in annotation["result"]:
+                    start_clause = extract_first_index(result["value"]["start"]) - 1
+                    end_clause = extract_first_index(result["value"]["end"]) - 1
+
+                    start_offset = sample_offsets[start_clause][0] + result["value"]["startOffset"]
+                    end_offset = sample_offsets[end_clause][0] + result["value"]["endOffset"]
+                    annotation_offsets.append((start_offset, end_offset))
+                    annotation_labels.append(result["value"]["hypertextlabels"])
+
+                split_id = RecordID(f"thought_anchor_gold_{id_anno_map[sample_annotator_id]}", sample_id)
+                db.upsert(split_id, {"split": annotation_offsets, "labels": annotation_labels})
+                db.insert_relation(f"has_thought_anchor_gold_{id_anno_map[sample_annotator_id]}", {"in": record_id, "out": split_id})
+                for offset in annotation_offsets:
+                    print(rec["rt"][offset[0]:offset[1]])
+                    print(20*"-")
+
+
 if __name__ == "__main__":
     # export_gold_set()
-    export_rf_data_gold_set_extended()
+    # export_rf_data_gold_set_extended()
+    import_annotated_data_extended()
