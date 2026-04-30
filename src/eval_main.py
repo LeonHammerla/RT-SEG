@@ -139,7 +139,7 @@ if __name__ == "__main__":
     ]
     aa: OffsetFusion = OffsetFusionGraph
     ss: Literal["clause", "sent"] = "clause"
-    score_approaches_triadic_boundary_similarity(mm, aa, ss)
+    # score_approaches_triadic_boundary_similarity(mm, aa, ss)
 
     # score_approaches_triadic_boundary_similarity_complete()
     # plot_score_vs_time_ta()
@@ -148,6 +148,6 @@ if __name__ == "__main__":
     # plot_single_engine_results_ta_and_rf(3)
 
     # extract_all_from_database()
-    # boxplot_evolutionary_search()
+    boxplot_evolutionary_search()
 
-    # kde_evolutionary_search()
+    kde_evolutionary_search()
