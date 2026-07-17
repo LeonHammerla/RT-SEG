@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software, please cite the software or the associated
+  conference paper (preferred) using the metadata below.
+
+title: "RT-Seg"
+type: software
+
+authors:
+  - family-names: "Hammerla"
+    given-names: "Leon"
+    orcid: "https://orcid.org/0009-0009-2333-9705"
+    affiliation: "Goethe University"
+
+  - family-names: "Verma"
+    given-names: "Bhuvanesh"
+    orcid: "https://orcid.org/0009-0000-5706-7271"
+    affiliation: "Goethe University"
+
+  - family-names: "Mehler"
+    given-names: "Alexander"
+    orcid: "https://orcid.org/0000-0003-2567-7539"
+    affiliation: "Goethe University"
+
+repository-code: "https://github.com/texttechnologylab/RT-SEG"
+url: "https://github.com/texttechnologylab/RT-SEG"
+license: "MIT License"
+
+abstract: >-
+  RT-Seg is a modular toolkit for segmenting and labeling LLM reasoning traces, enabling more systematic, reproducible, and fine-grained research on the structure of intermediate reasoning artifacts.
+
+keywords:
+  - "semantic text segmentation"
+  - "reasoning traces"
+  - "chain-of-thought"
+  - "LLM interpretability"
+  - "reasoning trace segmentation"
