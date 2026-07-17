@@ -2,6 +2,8 @@
   <img src="docs/assets/logo.svg" width="30%" style="max-width: 400px;">
 </p>
 
+<a href="https://doi.org/10.5281/zenodo.21416282"><img src="https://zenodo.org/badge/1139783066.svg" alt="DOI"></a>
+
 # RT-SEG — Reasoning Trace Segmentation
 
 `rt_seg` is a **Python 3.12.x** package for segmenting *reasoning traces* into coherent chunks and (optionally) assigning a label to each chunk.
