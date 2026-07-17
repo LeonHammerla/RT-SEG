@@ -16,31 +16,9 @@ from rt_segmentation import (
     RTEmbeddingBasedSemanticShift,
     RTNewLine,
     RTRuleRegex,
-    RTZeroShotSeqClassificationTA,
+    RTZeroShotSeqClassificationTA, RTPlainSegmenter, RTEntailmentBasedSegmentation, RTBERTopicSegmentation,
+    OffsetFusionFuzzy,
 )
-
-
-# Add or remove complete runs here. Every configuration must have a unique
-# ``rid`` and a unique segmentation setup when multiprocessing is enabled.
-RTSEG_CONFIGS: list[dict[str, Any]] = [
-    {
-        "rts_engines": [
-            RTNewLine,
-            RTRuleRegex,
-            RTZeroShotSeqClassificationTA,
-            RTEmbeddingBasedSemanticShift,
-        ],
-        "rts_aligner": OffsetFusionGraph,
-        "rts_label_fusion_type": "concat",
-        "rts_base_unit": "clause",
-        "rid": "complex1",
-    },
-]
-
-# Set this to False to execute the declared configurations sequentially, which
-# is useful for debugging or when one GPU cannot hold multiple concurrent runs.
-USE_MULTIPROCESSING = True
-MAX_WORKERS: int | None = None
 
 
 def main(
@@ -224,14 +202,14 @@ def _run_config(config: Mapping[str, Any]) -> dict[str, str]:
 
 
 def multi_main(
-    configs: Sequence[Mapping[str, Any]] | None = None,
+    configs: Sequence[Mapping[str, Any]],
     *,
-    use_multiprocessing: bool = USE_MULTIPROCESSING,
-    max_workers: int | None = MAX_WORKERS,
+    use_multiprocessing: bool = True,
+    max_workers: int | None = 8,
 ) -> list[dict[str, str]]:
     """Run every declared RT-SEG configuration sequentially or in parallel."""
     normalized_configs = _validate_configs(
-        RTSEG_CONFIGS if configs is None else configs,
+        configs,
         require_unique_segmentations=use_multiprocessing,
     )
 
@@ -273,4 +251,103 @@ def multi_main(
 
 
 if __name__ == "__main__":
-    multi_main()
+    RTSEG_CONFIGS: list[dict[str, Any]] = [
+        {
+            "rts_engines": [
+                RTPlainSegmenter
+            ],
+            "rts_aligner": None,
+            "rts_label_fusion_type": "concat",
+            "rts_base_unit": "sent",
+            "rid": "sentbase",
+        },
+        {
+            "rts_engines": [
+                RTPlainSegmenter
+            ],
+            "rts_aligner": None,
+            "rts_label_fusion_type": "concat",
+            "rts_base_unit": "clause",
+            "rid": "clausebase",
+        },
+        {
+            "rts_engines": [
+                RTNewLine,
+                RTRuleRegex,
+                RTZeroShotSeqClassificationTA,
+            ],
+            "rts_aligner": OffsetFusionGraph,
+            "rts_label_fusion_type": "concat",
+            "rts_base_unit": "clause",
+            "rid": "complex1",
+        },
+        {
+            "rts_engines": [
+                RTNewLine,
+                RTRuleRegex,
+                RTZeroShotSeqClassificationTA,
+                RTEmbeddingBasedSemanticShift,
+            ],
+            "rts_aligner": OffsetFusionGraph,
+            "rts_label_fusion_type": "concat",
+            "rts_base_unit": "clause",
+            "rid": "complex2",
+        },
+        {
+            "rts_engines": [
+                RTNewLine,
+                RTRuleRegex,
+                RTZeroShotSeqClassificationTA,
+                RTEmbeddingBasedSemanticShift,
+                RTEntailmentBasedSegmentation
+            ],
+            "rts_aligner": OffsetFusionGraph,
+            "rts_label_fusion_type": "concat",
+            "rts_base_unit": "clause",
+            "rid": "complex3",
+        },
+        {
+            "rts_engines": [
+                RTNewLine,
+                RTRuleRegex,
+                RTZeroShotSeqClassificationTA,
+                RTEmbeddingBasedSemanticShift,
+                RTEntailmentBasedSegmentation,
+                RTBERTopicSegmentation,
+            ],
+            "rts_aligner": OffsetFusionGraph,
+            "rts_label_fusion_type": "concat",
+            "rts_base_unit": "clause",
+            "rid": "complex4",
+        },
+        {
+            "rts_engines": [
+                RTNewLine,
+                RTRuleRegex,
+                RTZeroShotSeqClassificationTA,
+                RTEmbeddingBasedSemanticShift,
+                RTEntailmentBasedSegmentation,
+                RTBERTopicSegmentation,
+            ],
+            "rts_aligner": OffsetFusionFuzzy,
+            "rts_label_fusion_type": "concat",
+            "rts_base_unit": "clause",
+            "rid": "complex5",
+        },
+        {
+            "rts_engines": [
+                RTNewLine,
+                RTRuleRegex,
+                RTZeroShotSeqClassificationTA,
+                RTEmbeddingBasedSemanticShift,
+                RTEntailmentBasedSegmentation,
+                RTBERTopicSegmentation,
+            ],
+            "rts_aligner": OffsetFusionGraph,
+            "rts_label_fusion_type": "concat",
+            "rts_base_unit": "sent",
+            "rid": "complex6",
+        },
+    ]
+
+    multi_main(configs=RTSEG_CONFIGS, use_multiprocessing=True, max_workers=8)
