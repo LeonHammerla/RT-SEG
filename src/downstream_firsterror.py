@@ -312,61 +312,7 @@ if __name__ == "__main__":
             "rts_label_fusion_type": "concat",
             "rts_base_unit": "clause",
             "rid": "complex2",
-        },
-        {
-            "rts_engines": [
-                RTNewLine,
-                RTRuleRegex,
-                RTZeroShotSeqClassificationTA,
-                RTEmbeddingBasedSemanticShift,
-                RTEntailmentBasedSegmentation
-            ],
-            "rts_aligner": OffsetFusionGraph,
-            "rts_label_fusion_type": "concat",
-            "rts_base_unit": "clause",
-            "rid": "complex3",
-        },
-        {
-            "rts_engines": [
-                RTNewLine,
-                RTRuleRegex,
-                RTZeroShotSeqClassificationTA,
-                RTEmbeddingBasedSemanticShift,
-                RTEntailmentBasedSegmentation,
-                RTBERTopicSegmentation,
-            ],
-            "rts_aligner": OffsetFusionGraph,
-            "rts_label_fusion_type": "concat",
-            "rts_base_unit": "clause",
-            "rid": "complex4",
-        },
-        {
-            "rts_engines": [
-                RTNewLine,
-                RTRuleRegex,
-                RTZeroShotSeqClassificationTA,
-                RTEmbeddingBasedSemanticShift,
-                RTEntailmentBasedSegmentation,
-                RTBERTopicSegmentation,
-            ],
-            "rts_aligner": OffsetFusionFuzzy,
-            "rts_label_fusion_type": "concat",
-            "rts_base_unit": "clause",
-            "rid": "complex5",
-        },
-        {
-            "rts_engines": [
-                RTNewLine,
-                RTZeroShotSeqClassificationTA,
-                RTEmbeddingBasedSemanticShift,
-                RTEntailmentBasedSegmentation,
-                RTBERTopicSegmentation,
-            ],
-            "rts_aligner": OffsetFusionGraph,
-            "rts_label_fusion_type": "concat",
-            "rts_base_unit": "sent",
-            "rid": "complex6",
-        },
+        }
     ]
 
-    multi_main(configs=RTSEG_CONFIGS, use_multiprocessing=True, max_workers=8)
+    multi_main(configs=RTSEG_CONFIGS, use_multiprocessing=True, max_workers=4)
