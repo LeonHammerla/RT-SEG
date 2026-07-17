@@ -10,7 +10,10 @@ from eval_utils.first_error_detect_prm800k import (
     extract_first_error_samples,
     train_cross_validated_classifier,
 )
-from eval_utils.prm800k_utils import create_rtseg_dataset_main
+from eval_utils.prm800k_utils import (
+    create_rtseg_dataset_main,
+    get_rtseg_dataset_path,
+)
 from rt_segmentation import (
     OffsetFusionGraph,
     RTEmbeddingBasedSemanticShift,
@@ -27,18 +30,27 @@ def main(
     rtseg_label_fusion_type,
     rtseg_base_unit,
     rid,
+    *,
+    reuse_existing_dataset: bool = True,
 ) -> dict[str, str]:
-    _, dpath = create_rtseg_dataset_main(
+    dataset_path = get_rtseg_dataset_path(
         rtseg_engines=rtseg_engines,
-        rtseg_aligner=rtseg_aligner,
         rtseg_label_fusion_type=rtseg_label_fusion_type,
         rtseg_base_unit=rtseg_base_unit,
-        rtseg_top_k=1000,
-        rtseg_seed=42,
     )
+    if reuse_existing_dataset and dataset_path.exists():
+        print(f"[{rid}] Reusing existing RT-SEG dataset: {dataset_path}", flush=True)
+    else:
+        _, dataset_path = create_rtseg_dataset_main(
+            rtseg_engines=rtseg_engines,
+            rtseg_aligner=rtseg_aligner,
+            rtseg_label_fusion_type=rtseg_label_fusion_type,
+            rtseg_base_unit=rtseg_base_unit,
+            rtseg_top_k=1000,
+            rtseg_seed=42,
+        )
 
     repository_root = Path(__file__).resolve().parents[1]
-    dataset_path = dpath
     output_directory = repository_root / "data" / f"first_error_modernbert_{rid}"
     correct_per_error = 3
     random_seed = 42
@@ -187,7 +199,10 @@ def _validate_configs(
     return normalized_configs
 
 
-def _run_config(config: Mapping[str, Any]) -> dict[str, str]:
+def _run_config(
+    config: Mapping[str, Any],
+    reuse_existing_dataset: bool = True,
+) -> dict[str, str]:
     rid = config["rid"]
     print(f"[{rid}] Starting downstream first-error run.", flush=True)
     result = main(
@@ -196,6 +211,7 @@ def _run_config(config: Mapping[str, Any]) -> dict[str, str]:
         rtseg_label_fusion_type=config["rts_label_fusion_type"],
         rtseg_base_unit=config["rts_base_unit"],
         rid=rid,
+        reuse_existing_dataset=reuse_existing_dataset,
     )
     print(f"[{rid}] Completed downstream first-error run.", flush=True)
     return result
@@ -206,6 +222,7 @@ def multi_main(
     *,
     use_multiprocessing: bool = True,
     max_workers: int | None = 8,
+    reuse_existing_dataset: bool = True,
 ) -> list[dict[str, str]]:
     """Run every declared RT-SEG configuration sequentially or in parallel."""
     normalized_configs = _validate_configs(
@@ -214,7 +231,10 @@ def multi_main(
     )
 
     if not use_multiprocessing:
-        return [_run_config(config) for config in normalized_configs]
+        return [
+            _run_config(config, reuse_existing_dataset)
+            for config in normalized_configs
+        ]
 
     worker_count = len(normalized_configs) if max_workers is None else max_workers
     if worker_count <= 0:
@@ -229,7 +249,7 @@ def multi_main(
         mp_context=spawn_context,
     ) as executor:
         future_to_rid = {
-            executor.submit(_run_config, config): config["rid"]
+            executor.submit(_run_config, config, reuse_existing_dataset): config["rid"]
             for config in normalized_configs
         }
         for future in as_completed(future_to_rid):
@@ -337,7 +357,6 @@ if __name__ == "__main__":
         {
             "rts_engines": [
                 RTNewLine,
-                RTRuleRegex,
                 RTZeroShotSeqClassificationTA,
                 RTEmbeddingBasedSemanticShift,
                 RTEntailmentBasedSegmentation,

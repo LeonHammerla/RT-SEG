@@ -189,6 +189,25 @@ def _get_rtseg_config(*, rtseg: Any) -> str:
     return f"{engine_names}_{rtseg.label_fusion_type}_{rtseg.seg_base_unit}"
 
 
+def get_rtseg_dataset_path(
+    *,
+    rtseg_engines: Sequence[type],
+    rtseg_label_fusion_type: str,
+    rtseg_base_unit: str,
+) -> Path:
+    """Return the dataset path used by an RT-SEG configuration."""
+    engine_names = "_".join(engine.__name__ for engine in rtseg_engines)
+    rtseg_config = (
+        f"{engine_names}_{rtseg_label_fusion_type}_{rtseg_base_unit}"
+    )
+    return (
+        Path(__file__).resolve().parents[2]
+        / "data"
+        / "fe_rtseg_datasets"
+        / rtseg_config
+    )
+
+
 def _offsets_overlap(
     *,
     first: Sequence[int],

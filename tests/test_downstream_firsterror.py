@@ -63,6 +63,7 @@ def test_main_runs_segmentation_and_training_in_repository_data_directory(
             rtseg_label_fusion_type="concat",
             rtseg_base_unit="sent",
             rid="baseline",
+            reuse_existing_dataset=False,
         )
 
     mocked_create.assert_called_once_with(
@@ -85,6 +86,52 @@ def test_main_runs_segmentation_and_training_in_repository_data_directory(
         "dataset_path": str(dataset_path),
         "output_directory": str(expected_output),
     }
+
+
+def test_main_reuses_existing_dataset_by_default(tmp_path) -> None:
+    input_dataset = Dataset.from_dict({"reasoning_trace": ["A trace."]})
+    sample_dataset = Dataset.from_dict(
+        {"text": ["sample"], "labels": [1], "source_index": [0]}
+    )
+    dataset_path = tmp_path / "segmented"
+    dataset_path.mkdir()
+
+    with (
+        patch.object(
+            downstream_firsterror,
+            "get_rtseg_dataset_path",
+            return_value=dataset_path,
+        ),
+        patch.object(
+            downstream_firsterror,
+            "create_rtseg_dataset_main",
+        ) as mocked_create,
+        patch.object(
+            downstream_firsterror,
+            "load_from_disk",
+            return_value=input_dataset,
+        ) as mocked_load,
+        patch.object(
+            downstream_firsterror,
+            "extract_first_error_samples",
+            return_value=sample_dataset,
+        ),
+        patch.object(
+            downstream_firsterror,
+            "train_cross_validated_classifier",
+        ),
+    ):
+        result = downstream_firsterror.main(
+            rtseg_engines=[RTPlainSegmenter],
+            rtseg_aligner=None,
+            rtseg_label_fusion_type="concat",
+            rtseg_base_unit="sent",
+            rid="baseline",
+        )
+
+    mocked_create.assert_not_called()
+    mocked_load.assert_called_once_with(dataset_path)
+    assert result["dataset_path"] == str(dataset_path)
 
 
 def test_multi_main_can_run_declared_configs_sequentially() -> None:
@@ -111,6 +158,10 @@ def test_multi_main_can_run_declared_configs_sequentially() -> None:
         "complex",
         "sentence-baseline",
     ]
+    assert all(
+        call.kwargs["reuse_existing_dataset"] is True
+        for call in mocked.call_args_list
+    )
 
 
 def test_multi_main_uses_spawned_processes_and_preserves_config_order() -> None:
@@ -120,12 +171,13 @@ def test_multi_main_uses_spawned_processes_and_preserves_config_order() -> None:
     spawn_context = object()
 
     class FakeFuture:
-        def __init__(self, function, config):
+        def __init__(self, function, config, reuse_existing_dataset):
             self.function = function
             self.config = config
+            self.reuse_existing_dataset = reuse_existing_dataset
 
         def result(self):
-            return self.function(self.config)
+            return self.function(self.config, self.reuse_existing_dataset)
 
     class FakeExecutor:
         def __init__(self, **kwargs):
@@ -137,8 +189,8 @@ def test_multi_main_uses_spawned_processes_and_preserves_config_order() -> None:
         def __exit__(self, *args):
             return False
 
-        def submit(self, function, config):
-            future = FakeFuture(function, config)
+        def submit(self, function, config, reuse_existing_dataset):
+            future = FakeFuture(function, config, reuse_existing_dataset)
             submitted.append(future)
             return future
 
@@ -161,11 +213,16 @@ def test_multi_main_uses_spawned_processes_and_preserves_config_order() -> None:
             "as_completed",
             side_effect=lambda futures: reversed(list(futures)),
         ),
-        patch.object(downstream_firsterror, "main", side_effect=fake_main),
+        patch.object(
+            downstream_firsterror,
+            "main",
+            side_effect=fake_main,
+        ) as mocked_main,
     ):
         results = downstream_firsterror.multi_main(
             configs,
             use_multiprocessing=True,
+            reuse_existing_dataset=False,
         )
 
     mocked_context.assert_called_once_with("spawn")
@@ -178,6 +235,10 @@ def test_multi_main_uses_spawned_processes_and_preserves_config_order() -> None:
         "complex",
         "sentence-baseline",
     ]
+    assert all(
+        call.kwargs["reuse_existing_dataset"] is False
+        for call in mocked_main.call_args_list
+    )
 
 
 @pytest.mark.parametrize(
