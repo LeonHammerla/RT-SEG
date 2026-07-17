@@ -17,6 +17,47 @@ class UnitSegmentor:
         }
 
     @staticmethod
+    def _protected_spans(text: str) -> list[tuple[int, int]]:
+        combined = re.compile(
+            f"({'|'.join(UnitSegmentor.patterns.values())})",
+            re.DOTALL,
+        )
+        return [match.span() for match in combined.finditer(text)]
+
+    @staticmethod
+    def _inside_protected_span(
+        position: int,
+        protected_spans: list[tuple[int, int]],
+    ) -> bool:
+        return any(start < position < end for start, end in protected_spans)
+
+    @staticmethod
+    def _mask_protected_spans(text: str) -> str:
+        """Mask math and code without changing character coordinates.
+
+        Parsers should not interpret punctuation inside protected spans, but their
+        offsets are later applied to ``text``.  Replacing every non-whitespace
+        character with a neutral letter keeps those two coordinate systems
+        identical while retaining line and token boundaries around multiline
+        blocks.
+        """
+        combined = re.compile(
+            f"({'|'.join(UnitSegmentor.patterns.values())})",
+            re.DOTALL,
+        )
+
+        def mask_block(match: re.Match) -> str:
+            return "".join(
+                character if character.isspace() else "x"
+                for character in match.group()
+            )
+
+        masked_text = combined.sub(mask_block, text)
+        # This is the invariant that makes parser offsets safe for the source.
+        assert len(masked_text) == len(text)
+        return masked_text
+
+    @staticmethod
     @lru_cache(maxsize=1)
     def load_stanza_constituency():
         """
@@ -31,15 +72,8 @@ class UnitSegmentor:
 
     @staticmethod
     def get_math_aware_clauses(text: str) -> list[tuple[int, int]]:
-        placeholders = []
-
-        def mask_block(match):
-            ph = f"MATHBLOCK{len(placeholders)}Z"
-            placeholders.append(match.group())
-            return ph
-
-        combined = re.compile(f"({'|'.join(UnitSegmentor.patterns.values())})", re.DOTALL)
-        masked_text = combined.sub(mask_block, text)
+        masked_text = UnitSegmentor._mask_protected_spans(text)
+        protected_spans = UnitSegmentor._protected_spans(text)
 
         nlp = UnitSegmentor.load_stanza_constituency()
         doc = nlp(masked_text)
@@ -115,10 +149,15 @@ class UnitSegmentor:
         if not unique_offsets: return []
 
         # CONTIGUOUS MAPPING: Ensuring no gaps
-        contig = []
-        for idx in range(len(unique_offsets) - 1):
-            contig.append((unique_offsets[idx][0], unique_offsets[idx + 1][0]))
-        contig.append((unique_offsets[-1][0], len(text)))
+        starts = [0]
+        starts.extend(
+            start
+            for start, _ in unique_offsets
+            if start > 0
+            and not UnitSegmentor._inside_protected_span(start, protected_spans)
+        )
+        starts = sorted(set(starts))
+        contig = list(zip(starts, starts[1:] + [len(text)]))
 
         # FINAL PASS: Merge "Micro-segments" (segments shorter than 8 characters or 2 words)
         # This fixes the "So," and "since b" orphan problem.
@@ -157,24 +196,15 @@ class UnitSegmentor:
 
     @staticmethod
     def get_math_aware_clauses_dep(text: str, min_words=4):
-        combined_pattern = f"({'|'.join(UnitSegmentor.patterns.values())})"
-        matches = list(re.finditer(combined_pattern, text, flags=re.DOTALL))
-        masked_text = text
-        placeholders = {}
-
-        for i, match in enumerate(reversed(matches)):
-            placeholder = f"BLOCK_ID_{len(matches) - 1 - i}_"
-            start, end = match.span()
-            placeholders[placeholder] = match.group()
-            masked_text = masked_text[:start] + placeholder + masked_text[end:]
+        masked_text = UnitSegmentor._mask_protected_spans(text)
+        protected_spans = UnitSegmentor._protected_spans(text)
 
         nlp = UnitSegmentor.load_spacy_model()
         if not nlp:
             return []
 
         if "sentencizer" not in nlp.pipe_names:
-            sentencizer = nlp.create_pipe("sentencizer")
-            nlp.add_pipe(sentencizer, before="parser")
+            nlp.add_pipe("sentencizer", before="parser")
 
         doc = nlp(masked_text)
 
@@ -194,7 +224,12 @@ class UnitSegmentor:
                         token.dep_ in {'cc', 'mark'}):
                     start_idx = token.idx
                     prev_text = masked_text[sent_start:start_idx].strip()
-                    if len(prev_text.split()) >= min_words:
+                    if (
+                        len(prev_text.split()) >= min_words
+                        and not UnitSegmentor._inside_protected_span(
+                            start_idx, protected_spans
+                        )
+                    ):
                         split_indices.append(start_idx)
 
                 if token.text == ',' and token.i + 1 < len(sent):
@@ -202,57 +237,62 @@ class UnitSegmentor:
                     if next_tok.pos_ in {'VERB', 'AUX'} or next_tok.dep_ == 'mark':
                         start_idx = token.idx + 1
                         prev_text = masked_text[sent_start:start_idx].strip()
-                        if len(prev_text.split()) >= min_words:
+                        if (
+                            len(prev_text.split()) >= min_words
+                            and not UnitSegmentor._inside_protected_span(
+                                start_idx, protected_spans
+                            )
+                        ):
                             split_indices.append(start_idx)
 
             boundaries = sorted(list(set([sent_start] + split_indices + [sent_end])))
 
             for i in range(len(boundaries) - 1):
                 s, e = boundaries[i], boundaries[i + 1]
-                segment = masked_text[s:e].strip()
+                segment = text[s:e].strip()
                 if not segment:
                     continue
 
-                for ph, original_val in placeholders.items():
-                    segment = segment.replace(ph, original_val)
-
                 if re.search(r'\w+', segment):
-                    all_clauses.append((s, e, segment))
+                    if (
+                        all_clauses
+                        and UnitSegmentor._inside_protected_span(s, protected_spans)
+                    ):
+                        previous_start, _, _ = all_clauses.pop()
+                        all_clauses.append(
+                            (previous_start, e, text[previous_start:e].strip())
+                        )
+                    else:
+                        all_clauses.append((s, e, segment))
 
         return all_clauses
 
     @staticmethod
     def get_math_aware_sents(text: str):
-        # 1. Identify all protected spans (Math/Code)
-        combined_pattern = f"({'|'.join(UnitSegmentor.patterns.values())})"
-        matches = list(re.finditer(combined_pattern, text, flags=re.DOTALL))
+        if not text or not text.strip():
+            return []
 
-        # 2. Create a masked version of the text
-        masked_text = text
-        placeholders = {}
+        masked_text = UnitSegmentor._mask_protected_spans(text)
+        protected_spans = UnitSegmentor._protected_spans(text)
+        nlp = UnitSegmentor.load_spacy_model()
+        if not nlp:
+            return []
+        doc = nlp(masked_text)
 
-        # We replace from back to front to keep indices valid during string manipulation
-        for i, match in enumerate(reversed(matches)):
-            placeholder = f"BLOCK_ID_{len(matches) - 1 - i}_"
-            start, end = match.span()
-            placeholders[placeholder] = match.group()
-            masked_text = masked_text[:start] + placeholder + masked_text[end:]
-
-        # 3. Process with spaCy
-        doc = UnitSegmentor.load_spacy_model()(masked_text)
-
-        segments = []
-        for sent in doc.sents:
-            sent_text = sent.text
-
-            # 4. Restore the original content (Unmasking)
-            for placeholder, original in placeholders.items():
-                if placeholder in sent_text:
-                    sent_text = sent_text.replace(placeholder, original)
-
-            segments.append((sent.start_char, sent.end_char))
-
-        return segments
+        # Sentence spans commonly exclude inter-sentence whitespace.  Boundaries
+        # based on sentence starts preserve that whitespace and cover the source
+        # contiguously from the first through the final character.
+        starts = [0]
+        starts.extend(
+            sent.start_char
+            for sent in doc.sents
+            if sent.start_char > 0
+            and not UnitSegmentor._inside_protected_span(
+                sent.start_char, protected_spans
+            )
+        )
+        starts = sorted(set(starts))
+        return list(zip(starts, starts[1:] + [len(text)]))
 
 if __name__ == "__main__":
     # Test

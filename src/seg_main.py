@@ -14,6 +14,7 @@ mp.set_start_method('spawn', force=True)
 from rt_segmentation import (RTLLMOffsetBased,
                              RTLLMForcedDecoderBased,
                              RTLLMSegUnitBased,
+                             RTPlainSegmenter,
                              RTRuleRegex,
                              RTNewLine,
                              RTPRMBase,
@@ -47,6 +48,7 @@ def check():
         tables = [*db.query("info for DB").get("tables").keys()]
         unit = "sent"
         targets = [
+            "RTPlainSegmenter",
             "RTRuleRegex",
             "RTNewLine",
             "RTLLMForcedDecoderBased",
@@ -111,6 +113,7 @@ def main_exp(aligner: OffsetFusion = OffsetFusionGraph,
 
 
     models = [
+        [RTPlainSegmenter],
         [RTLLMOffsetBased],
         [RTLLMForcedDecoderBased],
         [RTLLMSegUnitBased],

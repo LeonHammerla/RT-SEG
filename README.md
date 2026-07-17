@@ -99,6 +99,27 @@ for (s, e), label in zip(offsets, labels):
     print(label, "=>", trace[s:e])
 ```
 
+## Plain base-unit segmentation
+
+Use `RTPlainSegmenter` when every output segment should be exactly one selected
+base unit, without rule-based grouping or model-based merging:
+
+```python
+from rt_seg import RTPlainSegmenter, RTSeg
+
+segmentor = RTSeg(
+    engines=[RTPlainSegmenter],
+    aligner=None,
+    seg_base_unit="sent",  # or "clause"
+)
+
+offsets, labels = segmentor(trace)
+segments = [trace[start:end] for start, end in offsets]
+```
+
+The offsets remain contiguous and cover the complete trace. Whitespace between
+base units is retained in the preceding segment.
+
 ---
 
 # Multiple Engines + Late Fusion
@@ -132,6 +153,7 @@ offsets, labels = segmentor(trace)
 
 ## Rule-Based
 
+* `RTPlainSegmenter` — return the selected sentence or clause base units unchanged
 * `RTRuleRegex`
 * `RTNewLine`
 

@@ -190,6 +190,7 @@ def sort_aligned_lists(key_list, *other_lists):
     time4 = [time_map[mid][3] for mid in model_ids]
 
     target_mapping = {
+        "RTPlainSegmenter": "Plain Base Unit",
         "RTRuleRegex": "Regex",
         "RTNewLine": "Newline",
         "RTLLMForcedDecoderBased": "Forced-Decod.",
@@ -399,6 +400,7 @@ def plot_stacked_with_ids(list1, list2, list3, list4,
     time4 = [time_map[mid][3] for mid in model_ids]
 
     target_mapping = {
+        "RTPlainSegmenter": "Plain Base Unit",
         "RTRuleRegex": "Regex",
         "RTNewLine": "Newline",
         "RTLLMForcedDecoderBased": "Forced-Decod.",

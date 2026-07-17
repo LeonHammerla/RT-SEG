@@ -21,8 +21,15 @@ source_directory = Path(__file__).resolve().parents[1]
 if str(source_directory) not in sys.path:
     sys.path.insert(0, str(source_directory))
 
-from rt_segmentation import RTRuleRegex, RTSeg, RTNewLine, RTNewLineVerbose, RTZeroShotSeqClassificationTA, \
-    OffsetFusionGraph
+from rt_segmentation import (
+    OffsetFusionGraph,
+    RTNewLine,
+    RTNewLineVerbose,
+    RTPlainSegmenter,
+    RTRuleRegex,
+    RTSeg,
+    RTZeroShotSeqClassificationTA, RTEmbeddingBasedSemanticShift,
+)
 
 
 def _select_completion(
@@ -195,7 +202,7 @@ def _label_resegmented_steps(
     *,
     new_offsets: Sequence[Sequence[int]],
     old_error_offset: Sequence[int],
-    trace_length: int,
+    reasoning_trace: str,
     correct_label: str,
     error_label: str,
     unannotated_label: str,
@@ -203,6 +210,11 @@ def _label_resegmented_steps(
     if len(old_error_offset) != 2:
         raise ValueError("The old error offset must contain exactly two positions.")
     old_error_start, old_error_end = old_error_offset
+    trace_length = len(reasoning_trace)
+    if not 0 <= old_error_start < old_error_end <= trace_length:
+        raise ValueError("The old error offset is invalid for the reasoning trace.")
+    if not new_offsets:
+        raise ValueError("RT-SEG must return at least one segment offset.")
     normalized_offsets = []
     new_error_index = None
 
@@ -210,16 +222,30 @@ def _label_resegmented_steps(
         if len(offset) != 2:
             raise ValueError("Every RT-SEG offset must contain exactly two positions.")
         start, end = int(offset[0]), int(offset[1])
-        if not 0 <= start <= end <= trace_length:
+        if not 0 <= start < end <= trace_length:
             raise ValueError(f"Invalid RT-SEG offset: [{start}, {end}].")
-        if normalized_offsets and start < normalized_offsets[-1][1]:
-            raise ValueError("RT-SEG offsets must be ordered and non-overlapping.")
+        expected_start = normalized_offsets[-1][1] if normalized_offsets else 0
+        if start != expected_start:
+            raise ValueError(
+                "RT-SEG offsets must be contiguous and start at zero: "
+                f"expected segment {index} to start at {expected_start}, got {start}."
+            )
+        if not reasoning_trace[start:end].strip():
+            raise ValueError(
+                f"RT-SEG segment {index} contains only whitespace."
+            )
         normalized_offsets.append([start, end])
         if new_error_index is None and _offsets_overlap(
             first=(start, end),
             second=(old_error_start, old_error_end),
         ):
             new_error_index = index
+
+    if normalized_offsets[-1][1] != trace_length:
+        raise ValueError(
+            "RT-SEG offsets must cover the complete reasoning trace: "
+            f"expected final end {trace_length}, got {normalized_offsets[-1][1]}."
+        )
 
     if new_error_index is None:
         raise ValueError("No RT-SEG segment overlaps the original error segment.")
@@ -242,7 +268,7 @@ def create_rtseg_dataset(
     correct_label: str,
     error_label: str,
     unannotated_label: str,
-) -> Dataset:
+) -> tuple[Dataset, Path]:
     """Shuffle, sample, resegment, relabel, and store a PRM800K dataset."""
     if top_k <= 0:
         raise ValueError("top_k must be greater than zero.")
@@ -273,7 +299,7 @@ def create_rtseg_dataset(
         normalized_offsets, labels, new_error_index = _label_resegmented_steps(
             new_offsets=new_offsets,
             old_error_offset=old_error_offset,
-            trace_length=len(reasoning_trace),
+            reasoning_trace=reasoning_trace,
             correct_label=correct_label,
             error_label=error_label,
             unannotated_label=unannotated_label,
@@ -298,7 +324,7 @@ def create_rtseg_dataset(
     print(processed_dataset)
     print("Example:")
     pprint(processed_dataset[0])
-    return processed_dataset
+    return processed_dataset, output_directory
 
 
 def load_base_dataset():
@@ -370,7 +396,7 @@ def create_rtseg_dataset_main(
         label_fusion_type=rtseg_label_fusion_type,
         seg_base_unit=rtseg_base_unit,
     )
-    create_rtseg_dataset(
+    res, dpath = create_rtseg_dataset(
         base_dataset=processed_dataset,
         rtseg=segmenter,
         seed=rtseg_seed,
@@ -380,24 +406,15 @@ def create_rtseg_dataset_main(
         error_label=rtseg_error_label,
         unannotated_label=rtseg_unannotated_label,
     )
+    return res, dpath
 
 
 
-if __name__ == "__main__":
-
-    rts_engines = [RTNewLineVerbose]
+def create_base():
+    rts_engines = [RTPlainSegmenter]
     rts_aligner = None
     rts_label_fusion_type = "concat"
     rts_base_unit = "sent"
-
-
-    """
-    rts_engines = [RTNewLine, RTRuleRegex, RTZeroShotSeqClassificationTA]
-    rts_aligner = OffsetFusionGraph
-    rts_label_fusion_type = "concat"
-    rts_base_unit = "clause"
-    """
-
 
     create_rtseg_dataset_main(
         rtseg_engines=rts_engines,
@@ -407,3 +424,37 @@ if __name__ == "__main__":
         rtseg_top_k=1000,
         rtseg_seed=42
     )
+
+def create_complex1():
+    rts_engines = [RTNewLine, RTRuleRegex, RTZeroShotSeqClassificationTA]
+    rts_aligner = OffsetFusionGraph
+    rts_label_fusion_type = "concat"
+    rts_base_unit = "clause"
+
+    create_rtseg_dataset_main(
+        rtseg_engines=rts_engines,
+        rtseg_aligner=rts_aligner,
+        rtseg_label_fusion_type=rts_label_fusion_type,
+        rtseg_base_unit=rts_base_unit,
+        rtseg_top_k=1000,
+        rtseg_seed=42
+    )
+
+
+def create_complex2():
+    rts_engines = [RTNewLine, RTRuleRegex, RTZeroShotSeqClassificationTA, RTEmbeddingBasedSemanticShift]
+    rts_aligner = OffsetFusionGraph
+    rts_label_fusion_type = "concat"
+    rts_base_unit = "clause"
+
+    create_rtseg_dataset_main(
+        rtseg_engines=rts_engines,
+        rtseg_aligner=rts_aligner,
+        rtseg_label_fusion_type=rts_label_fusion_type,
+        rtseg_base_unit=rts_base_unit,
+        rtseg_top_k=1000,
+        rtseg_seed=42
+    )
+
+if __name__ == "__main__":
+    create_complex2()

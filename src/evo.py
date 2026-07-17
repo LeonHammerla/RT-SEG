@@ -21,6 +21,7 @@ from rt_segmentation import (
     RTLLMOffsetBased,
     RTLLMForcedDecoderBased,
     RTLLMSegUnitBased,
+    RTPlainSegmenter,
     RTRuleRegex,
     RTNewLine,
     RTPRMBase,
@@ -41,6 +42,7 @@ from rt_segmentation import (
 )
 
 ALL_MODELS: List[Any] = [
+    RTPlainSegmenter,
     RTLLMOffsetBased,
     RTLLMForcedDecoderBased,
     RTLLMSegUnitBased,

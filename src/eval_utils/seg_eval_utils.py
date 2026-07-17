@@ -976,7 +976,8 @@ def score_approaches_triadic_boundary_similarity_complete_ta(window: int = 10):
     shapes = []
     for model_name in model_names:
         found = []
-        for target in ["RTRuleRegex",
+        for target in ["RTPlainSegmenter",
+                       "RTRuleRegex",
                        "RTNewLine"]:
             if target in model_name:
                 found.append("H")
@@ -1103,7 +1104,8 @@ def score_approaches_triadic_boundary_similarity_complete_rf(window: int = 10):
     shapes = []
     for model_name in model_names:
         found = []
-        for target in ["RTRuleRegex",
+        for target in ["RTPlainSegmenter",
+                       "RTRuleRegex",
                        "RTNewLine"]:
             if target in model_name:
                 found.append("H")
@@ -1166,6 +1168,7 @@ def get_single_engine_results_ta_and_rf(unit: Literal["sent", "clause"], window:
     data1, _ = score_approaches_triadic_boundary_similarity_complete_ta(window)
     data2 = score_approaches_triadic_boundary_similarity_complete_rf(window)
     targets = [
+        "RTPlainSegmenter",
         "RTRuleRegex",
         "RTNewLine",
         "RTLLMForcedDecoderBased",
@@ -1306,7 +1309,8 @@ def extract_all_from_database():
     for sample in data:
         model_name = sample["approach_id"]
         found = []
-        for target in ["RTRuleRegex",
+        for target in ["RTPlainSegmenter",
+                       "RTRuleRegex",
                        "RTNewLine"]:
             if target in model_name:
                 found.append("H")

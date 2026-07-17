@@ -12,6 +12,7 @@ from textual.widgets import Header, Footer, Static, Button, TextArea, Label, Sel
 from rt_segmentation import (RTLLMOffsetBased,
                              RTLLMForcedDecoderBased,
                              RTLLMSegUnitBased,
+                             RTPlainSegmenter,
                              RTRuleRegex,
                              RTNewLine,
                              RTBERTopicSegmentation,
@@ -133,6 +134,7 @@ class InputPanel1(Vertical):
         with VerticalScroll(id="selection-container"):
             yield Label("Segmentation Method(s):", id="method-label")
             yield SelectionList(
+                ("Plain Base Unit", "plain"),
                 ("Rule Based Split", "rule"),
                 ("Newline Split", "newline"),
                 ("Paragraph Split", "para"),
@@ -215,7 +217,8 @@ class MyApp(App):
             return
 
         engines = []
-        method_dict = {"rule": RTRuleRegex,
+        method_dict = {"plain": RTPlainSegmenter,
+                       "rule": RTRuleRegex,
                        "newline": RTNewLineVerbose,
                        "para": RTNewLine,
                        "entropy": RTLLMEntropy,

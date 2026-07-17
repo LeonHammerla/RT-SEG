@@ -1,5 +1,6 @@
 from .rule_split_regex import RTRuleRegex
 from .rule_split_newline import RTNewLine, RTNewLineVerbose
+from .plain_segmenter import RTPlainSegmenter
 from .seg_utils import bp, sdb_login, load_prompt, load_example_trace
 from .llm_split_offset import RTLLMOffsetBased
 from .llm_split_sent_chunks import RTLLMSegUnitBased

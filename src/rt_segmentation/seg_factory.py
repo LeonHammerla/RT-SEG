@@ -10,6 +10,7 @@ from .seg_base import SegBase
 
 from .rule_split_regex import RTRuleRegex
 from .rule_split_newline import RTNewLine, RTNewLineVerbose
+from .plain_segmenter import RTPlainSegmenter
 from .llm_split_offset import RTLLMOffsetBased
 from .llm_split_sent_chunks import RTLLMSegUnitBased
 from .llm_split_forced_decoder import RTLLMForcedDecoderBased
@@ -53,6 +54,7 @@ class RTSeg:
         and stores the engine instance for further use.
 
         Available segmentation engines:
+        - RTPlainSegmenter: Unmodified sentence- or clause-level base segmentation
         - RTRuleRegex: Regular expression based segmentation
         - RTNewLine: Newline based segmentation 
         - RTLLMOffsetBased: LLM-based segmentation using character offsets
@@ -95,6 +97,7 @@ class RTSeg:
         self.aligner = aligner
         self.label_fusion_type = label_fusion_type
         self.default_kwargs = {
+            RTPlainSegmenter: {},
             RTRuleRegex: {"model_name": None,
                           "system_prompt": None},
             RTNewLine: {"model_name": None,

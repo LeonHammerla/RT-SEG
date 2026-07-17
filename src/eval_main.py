@@ -24,6 +24,7 @@ from eval_utils import (evaluate_aggregate_segmentations,
 from rt_segmentation import (RTLLMOffsetBased,
                              RTLLMForcedDecoderBased,
                              RTLLMSegUnitBased,
+                             RTPlainSegmenter,
                              RTRuleRegex,
                              RTNewLine,
                              RTPRMBase,
@@ -117,6 +118,7 @@ def human_agreement():
 
 if __name__ == "__main__":
     mm = [
+        [RTPlainSegmenter],
         [RTLLMOffsetBased],
         [RTLLMForcedDecoderBased],
         [RTLLMSegUnitBased],
