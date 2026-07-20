@@ -31,12 +31,15 @@ def main(
     rtseg_base_unit,
     rid,
     *,
+    rtseg_top_k: int = 1000,
     reuse_existing_dataset: bool = True,
+    balance_classes: bool = False,
 ) -> dict[str, str]:
     dataset_path = get_rtseg_dataset_path(
         rtseg_engines=rtseg_engines,
         rtseg_label_fusion_type=rtseg_label_fusion_type,
         rtseg_base_unit=rtseg_base_unit,
+        rtseg_top_k=rtseg_top_k,
     )
     if reuse_existing_dataset and dataset_path.exists():
         print(f"[{rid}] Reusing existing RT-SEG dataset: {dataset_path}", flush=True)
@@ -46,7 +49,7 @@ def main(
             rtseg_aligner=rtseg_aligner,
             rtseg_label_fusion_type=rtseg_label_fusion_type,
             rtseg_base_unit=rtseg_base_unit,
-            rtseg_top_k=1000,
+            rtseg_top_k=rtseg_top_k,
             rtseg_seed=42,
         )
 
@@ -69,6 +72,8 @@ def main(
     attention_implementation = "flash_attention_2"
     deterministic_flash_attention = True
     use_gradient_checkpointing = True
+    calibration_fraction = 0.2
+    use_class_weights = True
     step_special_token = "[STEP]"
     trace_label_special_token = "[LABEL]"
     correct_rating = "0"
@@ -86,6 +91,7 @@ def main(
         trace_label_token=trace_label_special_token,
         correct_step_label=correct_rating,
         error_step_label=first_error_rating,
+        balance_classes=balance_classes,
     )
     train_cross_validated_classifier(
         sample_dataset=extracted_samples,
@@ -108,6 +114,8 @@ def main(
         attention_implementation=attention_implementation,
         deterministic_flash_attention=deterministic_flash_attention,
         use_gradient_checkpointing=use_gradient_checkpointing,
+        calibration_fraction=calibration_fraction,
+        use_class_weights=use_class_weights,
     )
     return {
         "rid": rid,
@@ -202,6 +210,8 @@ def _validate_configs(
 def _run_config(
     config: Mapping[str, Any],
     reuse_existing_dataset: bool = True,
+    rtseg_top_k: int = 1000,
+    balance_classes: bool = False,
 ) -> dict[str, str]:
     rid = config["rid"]
     print(f"[{rid}] Starting downstream first-error run.", flush=True)
@@ -211,7 +221,9 @@ def _run_config(
         rtseg_label_fusion_type=config["rts_label_fusion_type"],
         rtseg_base_unit=config["rts_base_unit"],
         rid=rid,
+        rtseg_top_k=rtseg_top_k,
         reuse_existing_dataset=reuse_existing_dataset,
+        balance_classes=balance_classes,
     )
     print(f"[{rid}] Completed downstream first-error run.", flush=True)
     return result
@@ -223,6 +235,8 @@ def multi_main(
     use_multiprocessing: bool = True,
     max_workers: int | None = 8,
     reuse_existing_dataset: bool = True,
+    rtseg_top_k: int = 1000,
+    balance_classes: bool = False,
 ) -> list[dict[str, str]]:
     """Run every declared RT-SEG configuration sequentially or in parallel."""
     normalized_configs = _validate_configs(
@@ -232,7 +246,12 @@ def multi_main(
 
     if not use_multiprocessing:
         return [
-            _run_config(config, reuse_existing_dataset)
+            _run_config(
+                config,
+                reuse_existing_dataset,
+                rtseg_top_k,
+                balance_classes,
+            )
             for config in normalized_configs
         ]
 
@@ -249,7 +268,13 @@ def multi_main(
         mp_context=spawn_context,
     ) as executor:
         future_to_rid = {
-            executor.submit(_run_config, config, reuse_existing_dataset): config["rid"]
+            executor.submit(
+                _run_config,
+                config,
+                reuse_existing_dataset,
+                rtseg_top_k,
+                balance_classes,
+            ): config["rid"]
             for config in normalized_configs
         }
         for future in as_completed(future_to_rid):
@@ -315,4 +340,10 @@ if __name__ == "__main__":
         }
     ]
 
-    multi_main(configs=RTSEG_CONFIGS, use_multiprocessing=True, max_workers=4)
+    multi_main(
+        configs=RTSEG_CONFIGS,
+        use_multiprocessing=True,
+        max_workers=4,
+        rtseg_top_k=5000,
+        balance_classes=True,
+    )

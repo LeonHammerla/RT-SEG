@@ -210,3 +210,11 @@ __marimo__/
 /test_venv/
 /NOTES.md
 /data/local_db/
+/data/first_error_modernbert_clausebase/
+/data/first_error_modernbert_complex1/
+/data/first_error_modernbert_complex2/
+/data/first_error_modernbert_sentbase/
+/data/reasoning_step_nli_modernbert_clausebase/
+/data/reasoning_step_nli_modernbert_complex1/
+/data/reasoning_step_nli_modernbert_complex2/
+/data/reasoning_step_nli_modernbert_sentbase/

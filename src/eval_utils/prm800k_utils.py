@@ -184,9 +184,18 @@ def load_prm800k(
     )
 
 
-def _get_rtseg_config(*, rtseg: Any) -> str:
+def _validate_top_k(top_k: int) -> None:
+    if not isinstance(top_k, int) or isinstance(top_k, bool) or top_k <= 0:
+        raise ValueError("top_k must be a positive integer.")
+
+
+def _get_rtseg_config(*, rtseg: Any, top_k: int) -> str:
+    _validate_top_k(top_k)
     engine_names = "_".join(engine.__name__ for engine in rtseg.engines)
-    return f"{engine_names}_{rtseg.label_fusion_type}_{rtseg.seg_base_unit}"
+    return (
+        f"{engine_names}_{rtseg.label_fusion_type}_{rtseg.seg_base_unit}"
+        f"_topk{top_k}"
+    )
 
 
 def get_rtseg_dataset_path(
@@ -194,11 +203,14 @@ def get_rtseg_dataset_path(
     rtseg_engines: Sequence[type],
     rtseg_label_fusion_type: str,
     rtseg_base_unit: str,
+    rtseg_top_k: int,
 ) -> Path:
     """Return the dataset path used by an RT-SEG configuration."""
+    _validate_top_k(rtseg_top_k)
     engine_names = "_".join(engine.__name__ for engine in rtseg_engines)
     rtseg_config = (
         f"{engine_names}_{rtseg_label_fusion_type}_{rtseg_base_unit}"
+        f"_topk{rtseg_top_k}"
     )
     return (
         Path(__file__).resolve().parents[2]
@@ -289,15 +301,14 @@ def create_rtseg_dataset(
     unannotated_label: str,
 ) -> tuple[Dataset, Path]:
     """Shuffle, sample, resegment, relabel, and store a PRM800K dataset."""
-    if top_k <= 0:
-        raise ValueError("top_k must be greater than zero.")
+    _validate_top_k(top_k)
     if top_k > len(base_dataset):
         raise ValueError(
             f"top_k ({top_k}) exceeds the dataset size ({len(base_dataset)})."
         )
 
     sampled_dataset = base_dataset.shuffle(seed=seed).select(range(top_k))
-    rtseg_config = _get_rtseg_config(rtseg=rtseg)
+    rtseg_config = _get_rtseg_config(rtseg=rtseg, top_k=top_k)
     processed_examples = []
 
     for example in tqdm(sampled_dataset, desc=f"Segmenting with {rtseg_config}"):
@@ -331,6 +342,7 @@ def create_rtseg_dataset(
         processed_example["error_step_index"] = new_error_index
         processed_example["rtseg_config"] = rtseg_config
         processed_example["sampling_seed"] = seed
+        processed_example["sampling_top_k"] = top_k
         processed_examples.append(processed_example)
 
     processed_dataset = Dataset.from_list(processed_examples)

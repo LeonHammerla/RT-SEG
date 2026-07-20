@@ -10,7 +10,11 @@ from typing import Any
 
 import numpy as np
 from datasets import Dataset, load_from_disk
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+from sklearn.metrics import (
+    accuracy_score,
+    precision_recall_curve,
+    precision_recall_fscore_support,
+)
 from sklearn.model_selection import StratifiedGroupKFold
 
 
@@ -57,13 +61,16 @@ def extract_first_error_samples(
     trace_label_token: str,
     correct_step_label: str,
     error_step_label: str,
+    balance_classes: bool = False,
 ) -> Dataset:
-    """Create one error prefix per trace and globally balance correct prefixes.
+    """Create error prefixes and select correct prefixes globally.
 
     Correct prefixes are selected round-robin across source traces up to the
     requested global ratio. Every available prefix is used at most once, so the
     result may contain fewer correct samples than requested when the dataset does
-    not contain enough unique pre-error prefixes.
+    not contain enough unique pre-error prefixes. When ``balance_classes`` is
+    enabled, retain the largest possible equally sized sets of first-error and
+    correct samples; ``correct_per_error`` is ignored for target sizing.
     """
     if correct_per_error <= 0:
         raise ValueError("correct_per_error must be greater than zero.")
@@ -123,11 +130,20 @@ def extract_first_error_samples(
     if not error_samples:
         raise ValueError("The dataset contains no first-error samples.")
 
-    correct_target = correct_per_error * len(error_samples)
-    if correct_target and not correct_samples_by_trace:
+    available_correct_count = sum(map(len, correct_samples_by_trace))
+    if not available_correct_count:
         raise ValueError(
             "The dataset contains no correct prefixes before its first errors."
         )
+
+    if balance_classes:
+        samples_per_class = min(len(error_samples), available_correct_count)
+        if samples_per_class < len(error_samples):
+            random_generator.shuffle(error_samples)
+            error_samples = error_samples[:samples_per_class]
+        correct_target = samples_per_class
+    else:
+        correct_target = correct_per_error * len(error_samples)
 
     # Take one prefix per eligible trace per pass for the most balanced unique
     # allocation possible, only allowing longer traces to contribute more once
@@ -149,19 +165,171 @@ def extract_first_error_samples(
     sample_dataset = Dataset.from_list(samples)
     print(
         f"Prepared {len(sample_dataset)} samples from {len(dataset)} traces; "
-        "retained one first-error sample per trace."
+        f"retained {len(error_samples)} first-error samples."
     )
     print(
         f"Correct samples: {sample_dataset['labels'].count(0)}, "
         f"first-error samples: {sample_dataset['labels'].count(1)}; "
-        f"requested correct samples: {correct_target}."
+        f"requested correct samples: {correct_target}; "
+        f"balanced classes: {balance_classes}."
     )
     return sample_dataset
 
 
-def _compute_metrics(prediction: Any) -> dict[str, float]:
-    predictions = np.argmax(prediction.predictions, axis=-1)
-    labels = prediction.label_ids
+def _positive_class_probabilities(logits: Any) -> np.ndarray:
+    logits_array = np.asarray(logits, dtype=np.float64)
+    if logits_array.ndim != 2 or logits_array.shape[1] != 2:
+        raise ValueError("Binary classification logits must have shape (n, 2).")
+    shifted_logits = logits_array - np.max(logits_array, axis=1, keepdims=True)
+    probabilities = np.exp(shifted_logits)
+    probabilities /= probabilities.sum(axis=1, keepdims=True)
+    return probabilities[:, 1]
+
+
+def _select_binary_f1_threshold(
+    *,
+    probabilities: Any,
+    labels: Any,
+) -> float:
+    """Choose a positive-class threshold using calibration data only."""
+    probability_array = np.asarray(probabilities, dtype=np.float64)
+    label_array = np.asarray(labels, dtype=np.int64)
+    if probability_array.ndim != 1 or label_array.ndim != 1:
+        raise ValueError("probabilities and labels must be one-dimensional.")
+    if len(probability_array) != len(label_array) or not len(label_array):
+        raise ValueError("probabilities and labels must have equal nonzero length.")
+    if not np.isfinite(probability_array).all():
+        raise ValueError("probabilities must contain only finite values.")
+    if np.any((probability_array < 0.0) | (probability_array > 1.0)):
+        raise ValueError("probabilities must be between zero and one.")
+    if set(np.unique(label_array)).difference({0, 1}):
+        raise ValueError("labels must contain only zero and one.")
+
+    precision, recall, thresholds = precision_recall_curve(
+        label_array,
+        probability_array,
+    )
+    if not len(thresholds):
+        return 0.5
+    denominator = precision[:-1] + recall[:-1]
+    f_scores = np.divide(
+        2.0 * precision[:-1] * recall[:-1],
+        denominator,
+        out=np.zeros_like(denominator),
+        where=denominator > 0.0,
+    )
+    best_f1 = float(np.max(f_scores))
+    best_indices = np.flatnonzero(np.isclose(f_scores, best_f1))
+    # A stable tie-break near 0.5 avoids needlessly extreme thresholds.
+    best_index = int(
+        best_indices[np.argmin(np.abs(thresholds[best_indices] - 0.5))]
+    )
+    return float(thresholds[best_index])
+
+
+def _balanced_class_weights(labels: Any) -> list[float]:
+    """Return sklearn-style balanced weights for binary cross-entropy."""
+    label_array = np.asarray(labels, dtype=np.int64)
+    if label_array.ndim != 1 or not len(label_array):
+        raise ValueError("labels must be a nonempty one-dimensional array.")
+    counts = np.bincount(label_array, minlength=2)
+    if len(counts) != 2 or np.any(counts == 0):
+        raise ValueError("Both classes are required to compute class weights.")
+    sample_count = len(label_array)
+    return [float(sample_count / (2 * count)) for count in counts]
+
+
+def _split_grouped_calibration(
+    *,
+    outer_train_indices: np.ndarray,
+    labels: np.ndarray,
+    groups: np.ndarray,
+    calibration_fraction: float,
+    seed: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Split an outer training fold into grouped fit and calibration sets."""
+    if not 0.0 < calibration_fraction < 0.5:
+        raise ValueError("calibration_fraction must be between zero and 0.5.")
+    outer_train_indices = np.asarray(outer_train_indices, dtype=np.int64)
+    local_labels = labels[outer_train_indices]
+    local_groups = groups[outer_train_indices]
+    n_splits = max(2, round(1.0 / calibration_fraction))
+    if n_splits > len(np.unique(local_groups)):
+        raise ValueError("Not enough training groups for calibration splitting.")
+
+    splitter = StratifiedGroupKFold(
+        n_splits=n_splits,
+        shuffle=True,
+        random_state=seed,
+    )
+    candidates = []
+    for fit_local, calibration_local in splitter.split(
+        np.zeros(len(local_labels)),
+        local_labels,
+        local_groups,
+    ):
+        if (
+            len(np.unique(local_labels[fit_local])) == 2
+            and len(np.unique(local_labels[calibration_local])) == 2
+        ):
+            observed_fraction = len(calibration_local) / len(local_labels)
+            candidates.append(
+                (
+                    abs(observed_fraction - calibration_fraction),
+                    fit_local,
+                    calibration_local,
+                )
+            )
+    if not candidates:
+        raise ValueError(
+            "Could not create fit and calibration sets containing both classes."
+        )
+    _, fit_local, calibration_local = min(candidates, key=lambda item: item[0])
+    return outer_train_indices[fit_local], outer_train_indices[calibration_local]
+
+
+def _make_weighted_trainer_class(trainer_class: Any) -> type:
+    class WeightedLossTrainer(trainer_class):
+        def __init__(self, *args: Any, class_weights: Sequence[float], **kwargs: Any):
+            super().__init__(*args, **kwargs)
+            self.class_weights = tuple(float(weight) for weight in class_weights)
+
+        def compute_loss(
+            self,
+            model: Any,
+            inputs: dict[str, Any],
+            return_outputs: bool = False,
+            num_items_in_batch: Any = None,
+        ) -> Any:
+            import torch
+
+            del num_items_in_batch
+            labels = inputs.pop("labels")
+            outputs = model(**inputs)
+            weights = torch.tensor(
+                self.class_weights,
+                dtype=torch.float32,
+                device=outputs.logits.device,
+            )
+            loss = torch.nn.functional.cross_entropy(
+                outputs.logits.float(),
+                labels,
+                weight=weights,
+            )
+            return (loss, outputs) if return_outputs else loss
+
+    return WeightedLossTrainer
+
+
+def _compute_metrics_at_threshold(
+    *,
+    logits: Any,
+    labels: Any,
+    threshold: float,
+) -> dict[str, float]:
+    probabilities = _positive_class_probabilities(logits)
+    predictions = (probabilities >= threshold).astype(np.int64)
+    labels = np.asarray(labels)
     precision, recall, f_scores, _ = precision_recall_fscore_support(
         labels,
         predictions,
@@ -176,6 +344,28 @@ def _compute_metrics(prediction: Any) -> dict[str, float]:
         "f1_first_error": float(f_scores[1]),
         "f1_macro": float(np.mean(f_scores)),
     }
+
+
+def _compute_metrics(prediction: Any) -> dict[str, float]:
+    return _compute_metrics_at_threshold(
+        logits=prediction.predictions,
+        labels=prediction.label_ids,
+        threshold=0.5,
+    )
+
+
+def _compute_calibrated_metrics(prediction: Any) -> dict[str, float]:
+    threshold = _select_binary_f1_threshold(
+        probabilities=_positive_class_probabilities(prediction.predictions),
+        labels=prediction.label_ids,
+    )
+    metrics = _compute_metrics_at_threshold(
+        logits=prediction.predictions,
+        labels=prediction.label_ids,
+        threshold=threshold,
+    )
+    metrics["decision_threshold"] = threshold
+    return metrics
 
 
 def _add_and_validate_special_tokens(
@@ -326,8 +516,10 @@ def train_cross_validated_classifier(
     attention_implementation: str,
     deterministic_flash_attention: bool,
     use_gradient_checkpointing: bool,
+    calibration_fraction: float = 0.2,
+    use_class_weights: bool = True,
 ) -> dict[str, Any]:
-    """Fine-tune a binary sequence classifier using grouped n-fold CV."""
+    """Fine-tune with nested grouped calibration inside grouped n-fold CV."""
     from transformers import (
         AutoConfig,
         AutoModelForSequenceClassification,
@@ -396,13 +588,26 @@ def train_cross_validated_classifier(
     groups = np.asarray(sample_dataset["source_index"])
     fold_metrics = []
     embedding_validations = []
+    trainer_class = _make_weighted_trainer_class(Trainer)
 
-    for fold_index, (train_indices, validation_indices) in enumerate(
+    for fold_index, (outer_train_indices, validation_indices) in enumerate(
         splitter.split(np.zeros(len(labels)), labels, groups),
         start=1,
     ):
         fold_seed = seed + fold_index
         set_seed(fold_seed)
+        train_indices, calibration_indices = _split_grouped_calibration(
+            outer_train_indices=outer_train_indices,
+            labels=labels,
+            groups=groups,
+            calibration_fraction=calibration_fraction,
+            seed=fold_seed,
+        )
+        class_weights = (
+            _balanced_class_weights(labels[train_indices])
+            if use_class_weights
+            else [1.0, 1.0]
+        )
         fold_directory = output_path / f"fold_{fold_index}"
         model = AutoModelForSequenceClassification.from_pretrained(
             model_name,
@@ -457,37 +662,56 @@ def train_cross_validated_classifier(
             gradient_checkpointing=use_gradient_checkpointing,
             group_by_length=True,
         )
-        trainer = Trainer(
+        trainer = trainer_class(
             model=model,
             args=training_arguments,
             train_dataset=tokenized_dataset.select(train_indices.tolist()),
-            eval_dataset=tokenized_dataset.select(validation_indices.tolist()),
+            eval_dataset=tokenized_dataset.select(calibration_indices.tolist()),
             processing_class=tokenizer,
             data_collator=DataCollatorWithPadding(
                 tokenizer=tokenizer,
                 padding="longest",
                 pad_to_multiple_of=8,
             ),
-            compute_metrics=_compute_metrics,
+            compute_metrics=_compute_calibrated_metrics,
+            class_weights=class_weights,
         )
         trainer.train()
-        raw_metrics = trainer.evaluate()
-        metrics = {
-            key.removeprefix("eval_"): float(value)
-            for key, value in raw_metrics.items()
-            if key.startswith("eval_")
-            and key
-            not in {
-                "eval_loss",
-                "eval_runtime",
-                "eval_samples_per_second",
-                "eval_steps_per_second",
-            }
-        }
+        calibration_output = trainer.predict(
+            tokenized_dataset.select(calibration_indices.tolist())
+        )
+        calibration_probabilities = _positive_class_probabilities(
+            calibration_output.predictions
+        )
+        decision_threshold = _select_binary_f1_threshold(
+            probabilities=calibration_probabilities,
+            labels=calibration_output.label_ids,
+        )
+        calibration_metrics = _compute_metrics_at_threshold(
+            logits=calibration_output.predictions,
+            labels=calibration_output.label_ids,
+            threshold=decision_threshold,
+        )
+        validation_output = trainer.predict(
+            tokenized_dataset.select(validation_indices.tolist())
+        )
+        metrics = _compute_metrics_at_threshold(
+            logits=validation_output.predictions,
+            labels=validation_output.label_ids,
+            threshold=decision_threshold,
+        )
         metrics["fold"] = fold_index
+        metrics["outer_train_samples"] = len(outer_train_indices)
         metrics["train_samples"] = len(train_indices)
+        metrics["calibration_samples"] = len(calibration_indices)
         metrics["validation_samples"] = len(validation_indices)
+        metrics["decision_threshold"] = decision_threshold
+        metrics["class_weights"] = class_weights
+        metrics["calibration_metrics"] = calibration_metrics
         fold_metrics.append(metrics)
+        trainer.model.config.decision_threshold = decision_threshold
+        trainer.model.config.positive_label = "first_error"
+        trainer.model.config.threshold_calibration_metric = "f1_first_error"
         best_model_directory = fold_directory / "best_model"
         trainer.save_model(best_model_directory)
         tokenizer.save_pretrained(best_model_directory)
@@ -533,6 +757,10 @@ def train_cross_validated_classifier(
             "attention_implementation": attention_implementation,
             "deterministic_flash_attention": deterministic_flash_attention,
             "gradient_checkpointing": use_gradient_checkpointing,
+            "calibration_fraction": calibration_fraction,
+            "calibration_metric": "f1_first_error",
+            "use_class_weights": use_class_weights,
+            "class_weight_method": "balanced",
             "dynamic_batch_padding": True,
             "step_token": step_token,
             "trace_label_token": trace_label_token,
@@ -547,7 +775,8 @@ def train_cross_validated_classifier(
     for fold in fold_metrics:
         print(
             f"Fold {fold['fold']}: first-error F1={fold['f1_first_error']:.4f}, "
-            f"macro F1={fold['f1_macro']:.4f}"
+            f"macro F1={fold['f1_macro']:.4f}, "
+            f"threshold={fold['decision_threshold']:.4f}"
         )
     print(
         "Average first-error F1: "
@@ -573,6 +802,7 @@ if __name__ == "__main__":
     )
     output_directory = repository_root / "data" / "first_error_modernbert_complex"
     correct_per_error = 3
+    balance_classes = False
     random_seed = 42
     number_of_folds = 5
     model_name = "answerdotai/ModernBERT-base"
@@ -606,6 +836,7 @@ if __name__ == "__main__":
         trace_label_token=trace_label_special_token,
         correct_step_label=correct_rating,
         error_step_label=first_error_rating,
+        balance_classes=balance_classes,
     )
     train_cross_validated_classifier(
         sample_dataset=extracted_samples,

@@ -22,15 +22,25 @@ from sklearn.model_selection import StratifiedGroupKFold
 if __package__:
     from .first_error_detect_prm800k import (
         _add_and_validate_special_tokens,
+        _balanced_class_weights,
         _extract_step_texts,
+        _make_weighted_trainer_class,
+        _positive_class_probabilities,
         _resize_and_validate_model_embeddings,
+        _select_binary_f1_threshold,
+        _split_grouped_calibration,
         _validate_flash_attention_environment,
     )
 else:
     from first_error_detect_prm800k import (
         _add_and_validate_special_tokens,
+        _balanced_class_weights,
         _extract_step_texts,
+        _make_weighted_trainer_class,
+        _positive_class_probabilities,
         _resize_and_validate_model_embeddings,
+        _select_binary_f1_threshold,
+        _split_grouped_calibration,
         _validate_flash_attention_environment,
     )
 
@@ -138,9 +148,15 @@ def extract_reasoning_step_pair_samples(
     return sample_dataset
 
 
-def _compute_metrics(prediction: Any) -> dict[str, float]:
-    predictions = np.argmax(prediction.predictions, axis=-1)
-    labels = prediction.label_ids
+def _compute_metrics_at_threshold(
+    *,
+    logits: Any,
+    labels: Any,
+    threshold: float,
+) -> dict[str, float]:
+    probabilities = _positive_class_probabilities(logits)
+    predictions = (probabilities >= threshold).astype(np.int64)
+    labels = np.asarray(labels)
     precision, recall, f_scores, _ = precision_recall_fscore_support(
         labels,
         predictions,
@@ -155,6 +171,28 @@ def _compute_metrics(prediction: Any) -> dict[str, float]:
         "f1_following": float(f_scores[1]),
         "f1_macro": float(np.mean(f_scores)),
     }
+
+
+def _compute_metrics(prediction: Any) -> dict[str, float]:
+    return _compute_metrics_at_threshold(
+        logits=prediction.predictions,
+        labels=prediction.label_ids,
+        threshold=0.5,
+    )
+
+
+def _compute_calibrated_metrics(prediction: Any) -> dict[str, float]:
+    threshold = _select_binary_f1_threshold(
+        probabilities=_positive_class_probabilities(prediction.predictions),
+        labels=prediction.label_ids,
+    )
+    metrics = _compute_metrics_at_threshold(
+        logits=prediction.predictions,
+        labels=prediction.label_ids,
+        threshold=threshold,
+    )
+    metrics["decision_threshold"] = threshold
+    return metrics
 
 
 def _format_step_for_model(
@@ -196,8 +234,10 @@ def train_cross_validated_classifier(
     attention_implementation: str,
     deterministic_flash_attention: bool,
     use_gradient_checkpointing: bool,
+    calibration_fraction: float = 0.2,
+    use_class_weights: bool = True,
 ) -> dict[str, Any]:
-    """Fine-tune a binary sequence-pair classifier using grouped n-fold CV."""
+    """Fine-tune with nested grouped calibration inside grouped n-fold CV."""
     from transformers import (
         AutoConfig,
         AutoModelForSequenceClassification,
@@ -293,13 +333,26 @@ def train_cross_validated_classifier(
     groups = np.asarray(sample_dataset["source_index"])
     fold_metrics = []
     embedding_validations = []
+    trainer_class = _make_weighted_trainer_class(Trainer)
 
-    for fold_index, (train_indices, validation_indices) in enumerate(
+    for fold_index, (outer_train_indices, validation_indices) in enumerate(
         splitter.split(np.zeros(len(labels)), labels, groups),
         start=1,
     ):
         fold_seed = seed + fold_index
         set_seed(fold_seed)
+        train_indices, calibration_indices = _split_grouped_calibration(
+            outer_train_indices=outer_train_indices,
+            labels=labels,
+            groups=groups,
+            calibration_fraction=calibration_fraction,
+            seed=fold_seed,
+        )
+        class_weights = (
+            _balanced_class_weights(labels[train_indices])
+            if use_class_weights
+            else [1.0, 1.0]
+        )
         fold_directory = output_path / f"fold_{fold_index}"
         model = AutoModelForSequenceClassification.from_pretrained(
             model_name,
@@ -352,37 +405,56 @@ def train_cross_validated_classifier(
             gradient_checkpointing=use_gradient_checkpointing,
             group_by_length=True,
         )
-        trainer = Trainer(
+        trainer = trainer_class(
             model=model,
             args=training_arguments,
             train_dataset=tokenized_dataset.select(train_indices.tolist()),
-            eval_dataset=tokenized_dataset.select(validation_indices.tolist()),
+            eval_dataset=tokenized_dataset.select(calibration_indices.tolist()),
             processing_class=tokenizer,
             data_collator=DataCollatorWithPadding(
                 tokenizer=tokenizer,
                 padding="longest",
                 pad_to_multiple_of=8,
             ),
-            compute_metrics=_compute_metrics,
+            compute_metrics=_compute_calibrated_metrics,
+            class_weights=class_weights,
         )
         trainer.train()
-        raw_metrics = trainer.evaluate()
-        metrics = {
-            key.removeprefix("eval_"): float(value)
-            for key, value in raw_metrics.items()
-            if key.startswith("eval_")
-            and key
-            not in {
-                "eval_loss",
-                "eval_runtime",
-                "eval_samples_per_second",
-                "eval_steps_per_second",
-            }
-        }
+        calibration_output = trainer.predict(
+            tokenized_dataset.select(calibration_indices.tolist())
+        )
+        calibration_probabilities = _positive_class_probabilities(
+            calibration_output.predictions
+        )
+        decision_threshold = _select_binary_f1_threshold(
+            probabilities=calibration_probabilities,
+            labels=calibration_output.label_ids,
+        )
+        calibration_metrics = _compute_metrics_at_threshold(
+            logits=calibration_output.predictions,
+            labels=calibration_output.label_ids,
+            threshold=decision_threshold,
+        )
+        validation_output = trainer.predict(
+            tokenized_dataset.select(validation_indices.tolist())
+        )
+        metrics = _compute_metrics_at_threshold(
+            logits=validation_output.predictions,
+            labels=validation_output.label_ids,
+            threshold=decision_threshold,
+        )
         metrics["fold"] = fold_index
+        metrics["outer_train_samples"] = len(outer_train_indices)
         metrics["train_samples"] = len(train_indices)
+        metrics["calibration_samples"] = len(calibration_indices)
         metrics["validation_samples"] = len(validation_indices)
+        metrics["decision_threshold"] = decision_threshold
+        metrics["class_weights"] = class_weights
+        metrics["calibration_metrics"] = calibration_metrics
         fold_metrics.append(metrics)
+        trainer.model.config.decision_threshold = decision_threshold
+        trainer.model.config.positive_label = "following"
+        trainer.model.config.threshold_calibration_metric = "f1_following"
         best_model_directory = fold_directory / "best_model"
         trainer.save_model(best_model_directory)
         tokenizer.save_pretrained(best_model_directory)
@@ -428,6 +500,10 @@ def train_cross_validated_classifier(
             "attention_implementation": attention_implementation,
             "deterministic_flash_attention": deterministic_flash_attention,
             "gradient_checkpointing": use_gradient_checkpointing,
+            "calibration_fraction": calibration_fraction,
+            "calibration_metric": "f1_following",
+            "use_class_weights": use_class_weights,
+            "class_weight_method": "balanced",
             "dynamic_batch_padding": True,
             "include_rtseg_labels": include_rtseg_labels,
             "step_token": step_token,
@@ -443,7 +519,8 @@ def train_cross_validated_classifier(
     for fold in fold_metrics:
         print(
             f"Fold {fold['fold']}: following F1={fold['f1_following']:.4f}, "
-            f"macro F1={fold['f1_macro']:.4f}"
+            f"macro F1={fold['f1_macro']:.4f}, "
+            f"threshold={fold['decision_threshold']:.4f}"
         )
     print(
         f"Average following F1: {averages['f1_following']['mean']:.4f} +/- "

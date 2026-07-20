@@ -72,6 +72,8 @@ def test_main_runs_segmentation_and_reasoning_step_nli_training(tmp_path) -> Non
     assert mocked_train.call_args.kwargs["output_directory"] == expected_output
     assert mocked_train.call_args.kwargs["include_rtseg_labels"] is True
     assert mocked_train.call_args.kwargs["max_length"] == 512
+    assert mocked_train.call_args.kwargs["calibration_fraction"] == 0.2
+    assert mocked_train.call_args.kwargs["use_class_weights"] is True
     assert result == {
         "rid": "baseline",
         "dataset_path": str(dataset_path),
@@ -79,7 +81,7 @@ def test_main_runs_segmentation_and_reasoning_step_nli_training(tmp_path) -> Non
     }
 
 
-def test_main_reuses_existing_dataset_by_default(tmp_path) -> None:
+def test_main_reuses_existing_dataset_for_requested_top_k(tmp_path) -> None:
     input_dataset = Dataset.from_dict({"reasoning_trace": ["A trace."]})
     sample_dataset = Dataset.from_dict(
         {
@@ -97,7 +99,7 @@ def test_main_reuses_existing_dataset_by_default(tmp_path) -> None:
             downstream_reasoning_step_nli,
             "get_rtseg_dataset_path",
             return_value=dataset_path,
-        ),
+        ) as mocked_get_path,
         patch.object(
             downstream_reasoning_step_nli,
             "create_rtseg_dataset_main",
@@ -123,9 +125,16 @@ def test_main_reuses_existing_dataset_by_default(tmp_path) -> None:
             rtseg_label_fusion_type="concat",
             rtseg_base_unit="sent",
             rid="baseline",
+            rtseg_top_k=2500,
         )
 
     mocked_create.assert_not_called()
+    mocked_get_path.assert_called_once_with(
+        rtseg_engines=[RTPlainSegmenter],
+        rtseg_label_fusion_type="concat",
+        rtseg_base_unit="sent",
+        rtseg_top_k=2500,
+    )
     mocked_load.assert_called_once_with(dataset_path)
     assert result["dataset_path"] == str(dataset_path)
 
@@ -163,6 +172,7 @@ def test_multi_main_can_run_declared_configs_sequentially() -> None:
         results = downstream_reasoning_step_nli.multi_main(
             configs,
             use_multiprocessing=False,
+            rtseg_top_k=2500,
         )
 
     assert [result["rid"] for result in results] == [
@@ -175,5 +185,9 @@ def test_multi_main_can_run_declared_configs_sequentially() -> None:
     ]
     assert all(
         call.kwargs["reuse_existing_dataset"] is True
+        for call in mocked.call_args_list
+    )
+    assert all(
+        call.kwargs["rtseg_top_k"] == 2500
         for call in mocked.call_args_list
     )

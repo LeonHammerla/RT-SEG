@@ -6,7 +6,12 @@ from datasets import Dataset
 
 from eval_utils.first_error_detect_prm800k import (
     _add_and_validate_special_tokens,
+    _balanced_class_weights,
+    _make_weighted_trainer_class,
+    _positive_class_probabilities,
     _resize_and_validate_model_embeddings,
+    _select_binary_f1_threshold,
+    _split_grouped_calibration,
     _validate_flash_attention_environment,
     extract_first_error_samples,
 )
@@ -149,6 +154,80 @@ def test_global_correct_selection_balances_traces_before_using_longer_ones() -> 
     assert correct_source_indices == [0, 1]
 
 
+def test_balance_classes_retains_all_errors_when_enough_correct_samples_exist() -> None:
+    dataset = Dataset.from_list(
+        [
+            {
+                "reasoning_trace": "a b error",
+                "reasoning_steps": [[0, 1], [2, 3], [4, 9]],
+                "step_ratings": ["0", "0", "-1"],
+                "rtseg_labels": ["work", "work", "mistake"],
+            },
+            {
+                "reasoning_trace": "a error",
+                "reasoning_steps": [[0, 1], [2, 7]],
+                "step_ratings": ["0", "-1"],
+                "rtseg_labels": ["work", "mistake"],
+            },
+        ]
+    )
+
+    result = extract_first_error_samples(
+        dataset=dataset,
+        correct_per_error=10,
+        seed=7,
+        step_token="[STEP]",
+        trace_label_token="[LABEL]",
+        correct_step_label="0",
+        error_step_label="-1",
+        balance_classes=True,
+    )
+
+    assert result["labels"].count(1) == 2
+    assert result["labels"].count(0) == 2
+    assert len(result) == 4
+
+
+def test_balance_classes_uses_largest_possible_balanced_subset() -> None:
+    dataset = Dataset.from_list(
+        [
+            {
+                "reasoning_trace": "error",
+                "reasoning_steps": [[0, 5]],
+                "step_ratings": ["-1"],
+                "rtseg_labels": ["mistake"],
+            },
+            {
+                "reasoning_trace": "error",
+                "reasoning_steps": [[0, 5]],
+                "step_ratings": ["-1"],
+                "rtseg_labels": ["mistake"],
+            },
+            {
+                "reasoning_trace": "a error",
+                "reasoning_steps": [[0, 1], [2, 7]],
+                "step_ratings": ["0", "-1"],
+                "rtseg_labels": ["work", "mistake"],
+            },
+        ]
+    )
+
+    result = extract_first_error_samples(
+        dataset=dataset,
+        correct_per_error=3,
+        seed=11,
+        step_token="[STEP]",
+        trace_label_token="[LABEL]",
+        correct_step_label="0",
+        error_step_label="-1",
+        balance_classes=True,
+    )
+
+    assert result["labels"].count(1) == 1
+    assert result["labels"].count(0) == 1
+    assert len(result) == 2
+
+
 def test_special_tokens_and_model_embeddings_are_resized() -> None:
     class FakeTokenizer:
         def __init__(self):
@@ -233,3 +312,74 @@ def test_training_requires_exactly_one_half_precision_dtype() -> None:
             use_bf16=False,
             use_fp16=False,
         )
+
+
+def test_binary_f1_threshold_is_selected_from_probabilities() -> None:
+    threshold = _select_binary_f1_threshold(
+        probabilities=[0.10, 0.40, 0.35, 0.80],
+        labels=[0, 0, 1, 1],
+    )
+
+    assert threshold == pytest.approx(0.35)
+
+
+def test_positive_class_probabilities_use_binary_softmax() -> None:
+    probabilities = _positive_class_probabilities(
+        [[0.0, 0.0], [0.0, float(torch.log(torch.tensor(3.0)))]],
+    )
+
+    assert probabilities.tolist() == pytest.approx([0.5, 0.75])
+
+
+def test_balanced_class_weights_upweight_the_minority_class() -> None:
+    weights = _balanced_class_weights([0, 0, 0, 0, 0, 0, 1, 1])
+
+    assert weights == pytest.approx([2 / 3, 2.0])
+
+
+def test_grouped_calibration_split_is_disjoint_and_stratified() -> None:
+    import numpy as np
+
+    labels = np.tile([0, 1], 10)
+    groups = np.repeat(np.arange(10), 2)
+    outer_train_indices = np.arange(len(labels))
+
+    fit_indices, calibration_indices = _split_grouped_calibration(
+        outer_train_indices=outer_train_indices,
+        labels=labels,
+        groups=groups,
+        calibration_fraction=0.2,
+        seed=43,
+    )
+
+    assert set(groups[fit_indices]).isdisjoint(groups[calibration_indices])
+    assert set(labels[fit_indices]) == {0, 1}
+    assert set(labels[calibration_indices]) == {0, 1}
+    assert len(calibration_indices) == 4
+
+
+def test_weighted_trainer_uses_weighted_cross_entropy() -> None:
+    class FakeTrainer:
+        def __init__(self, **kwargs):
+            del kwargs
+
+    class FakeModel:
+        def __call__(self, *, logits):
+            return SimpleNamespace(logits=logits)
+
+    trainer_class = _make_weighted_trainer_class(FakeTrainer)
+    trainer = trainer_class(class_weights=[1.0, 3.0])
+    logits = torch.tensor([[2.0, 0.0], [2.0, 0.0]])
+    labels = torch.tensor([0, 1])
+    expected = torch.nn.functional.cross_entropy(
+        logits,
+        labels,
+        weight=torch.tensor([1.0, 3.0]),
+    )
+
+    loss = trainer.compute_loss(
+        FakeModel(),
+        {"logits": logits, "labels": labels},
+    )
+
+    assert loss == pytest.approx(expected)

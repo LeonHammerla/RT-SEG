@@ -3,7 +3,11 @@ from unittest.mock import patch
 import pytest
 from datasets import Dataset, DatasetDict
 
-from eval_utils.prm800k_utils import create_rtseg_dataset, load_prm800k
+from eval_utils.prm800k_utils import (
+    create_rtseg_dataset,
+    get_rtseg_dataset_path,
+    load_prm800k,
+)
 
 
 LOAD_KWARGS = {
@@ -164,6 +168,23 @@ def test_create_rtseg_dataset_resegments_and_relabels(tmp_path) -> None:
     assert result[0]["step_ratings"] == ["0", "-1", "x"]
     assert result[0]["rtseg_labels"] == ["setup", "computation", "answer"]
     assert result[0]["error_step_index"] == 1
-    assert result[0]["rtseg_config"] == "FakeEngine_concat_sent"
+    assert result[0]["rtseg_config"] == "FakeEngine_concat_sent_topk1"
     assert result[0]["sampling_seed"] == 17
-    assert (tmp_path / "FakeEngine_concat_sent" / "dataset_info.json").exists()
+    assert result[0]["sampling_top_k"] == 1
+    assert (
+        tmp_path / "FakeEngine_concat_sent_topk1" / "dataset_info.json"
+    ).exists()
+
+
+def test_rtseg_dataset_path_includes_requested_sample_count() -> None:
+    class FakeEngine:
+        pass
+
+    path = get_rtseg_dataset_path(
+        rtseg_engines=[FakeEngine],
+        rtseg_label_fusion_type="concat",
+        rtseg_base_unit="sent",
+        rtseg_top_k=2500,
+    )
+
+    assert path.name == "FakeEngine_concat_sent_topk2500"
