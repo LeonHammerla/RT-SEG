@@ -12,7 +12,6 @@ import numpy as np
 from datasets import Dataset, load_from_disk
 from sklearn.metrics import (
     accuracy_score,
-    precision_recall_curve,
     precision_recall_fscore_support,
 )
 from sklearn.model_selection import StratifiedGroupKFold
@@ -186,12 +185,12 @@ def _positive_class_probabilities(logits: Any) -> np.ndarray:
     return probabilities[:, 1]
 
 
-def _select_binary_f1_threshold(
+def _select_macro_f1_threshold(
     *,
     probabilities: Any,
     labels: Any,
 ) -> float:
-    """Choose a positive-class threshold using calibration data only."""
+    """Choose the threshold with the best binary macro F1 on calibration data."""
     probability_array = np.asarray(probabilities, dtype=np.float64)
     label_array = np.asarray(labels, dtype=np.int64)
     if probability_array.ndim != 1 or label_array.ndim != 1:
@@ -205,21 +204,56 @@ def _select_binary_f1_threshold(
     if set(np.unique(label_array)).difference({0, 1}):
         raise ValueError("labels must contain only zero and one.")
 
-    precision, recall, thresholds = precision_recall_curve(
-        label_array,
-        probability_array,
+    # Sort once and update the confusion matrix at each distinct probability.
+    # This evaluates every prediction boundary in O(n log n), rather than
+    # recomputing macro F1 from all samples for every possible threshold.
+    descending_indices = np.argsort(-probability_array, kind="stable")
+    sorted_probabilities = probability_array[descending_indices]
+    sorted_labels = label_array[descending_indices]
+    distinct_ends = np.concatenate(
+        (sorted_probabilities[1:] != sorted_probabilities[:-1], [True])
     )
-    if not len(thresholds):
-        return 0.5
-    denominator = precision[:-1] + recall[:-1]
-    f_scores = np.divide(
-        2.0 * precision[:-1] * recall[:-1],
-        denominator,
-        out=np.zeros_like(denominator),
-        where=denominator > 0.0,
+    true_positives = np.cumsum(sorted_labels == 1)[distinct_ends].astype(float)
+    false_positives = np.cumsum(sorted_labels == 0)[distinct_ends].astype(float)
+    total_positives = float(np.count_nonzero(label_array == 1))
+    total_negatives = float(np.count_nonzero(label_array == 0))
+    false_negatives = total_positives - true_positives
+    true_negatives = total_negatives - false_positives
+
+    positive_denominators = (
+        2.0 * true_positives + false_positives + false_negatives
     )
-    best_f1 = float(np.max(f_scores))
-    best_indices = np.flatnonzero(np.isclose(f_scores, best_f1))
+    negative_denominators = (
+        2.0 * true_negatives + false_positives + false_negatives
+    )
+    positive_f1 = np.divide(
+        2.0 * true_positives,
+        positive_denominators,
+        out=np.zeros_like(true_positives),
+        where=positive_denominators > 0.0,
+    )
+    negative_f1 = np.divide(
+        2.0 * true_negatives,
+        negative_denominators,
+        out=np.zeros_like(true_negatives),
+        where=negative_denominators > 0.0,
+    )
+    macro_f1 = (negative_f1 + positive_f1) / 2.0
+    thresholds = sorted_probabilities[distinct_ends]
+
+    # Also consider predicting every sample as negative. The threshold may be
+    # infinitesimally above 1.0 only when a probability is exactly 1.0.
+    all_negative_threshold = np.nextafter(sorted_probabilities[0], np.inf)
+    all_negative_negative_f1 = (
+        2.0 * total_negatives / (2.0 * total_negatives + total_positives)
+        if total_negatives
+        else 0.0
+    )
+    thresholds = np.concatenate(([all_negative_threshold], thresholds))
+    macro_f1 = np.concatenate(([all_negative_negative_f1 / 2.0], macro_f1))
+
+    best_f1 = float(np.max(macro_f1))
+    best_indices = np.flatnonzero(np.isclose(macro_f1, best_f1))
     # A stable tie-break near 0.5 avoids needlessly extreme thresholds.
     best_index = int(
         best_indices[np.argmin(np.abs(thresholds[best_indices] - 0.5))]
@@ -355,7 +389,7 @@ def _compute_metrics(prediction: Any) -> dict[str, float]:
 
 
 def _compute_calibrated_metrics(prediction: Any) -> dict[str, float]:
-    threshold = _select_binary_f1_threshold(
+    threshold = _select_macro_f1_threshold(
         probabilities=_positive_class_probabilities(prediction.predictions),
         labels=prediction.label_ids,
     )
@@ -643,7 +677,7 @@ def train_cross_validated_classifier(
             eval_strategy="epoch",
             save_strategy="epoch",
             load_best_model_at_end=True,
-            metric_for_best_model="f1_first_error",
+            metric_for_best_model="f1_macro",
             greater_is_better=True,
             learning_rate=learning_rate,
             weight_decay=weight_decay,
@@ -683,7 +717,7 @@ def train_cross_validated_classifier(
         calibration_probabilities = _positive_class_probabilities(
             calibration_output.predictions
         )
-        decision_threshold = _select_binary_f1_threshold(
+        decision_threshold = _select_macro_f1_threshold(
             probabilities=calibration_probabilities,
             labels=calibration_output.label_ids,
         )
@@ -711,7 +745,7 @@ def train_cross_validated_classifier(
         fold_metrics.append(metrics)
         trainer.model.config.decision_threshold = decision_threshold
         trainer.model.config.positive_label = "first_error"
-        trainer.model.config.threshold_calibration_metric = "f1_first_error"
+        trainer.model.config.threshold_calibration_metric = "f1_macro"
         best_model_directory = fold_directory / "best_model"
         trainer.save_model(best_model_directory)
         tokenizer.save_pretrained(best_model_directory)
@@ -758,7 +792,8 @@ def train_cross_validated_classifier(
             "deterministic_flash_attention": deterministic_flash_attention,
             "gradient_checkpointing": use_gradient_checkpointing,
             "calibration_fraction": calibration_fraction,
-            "calibration_metric": "f1_first_error",
+            "calibration_metric": "f1_macro",
+            "model_selection_metric": "f1_macro",
             "use_class_weights": use_class_weights,
             "class_weight_method": "balanced",
             "dynamic_batch_padding": True,

@@ -27,7 +27,7 @@ if __package__:
         _make_weighted_trainer_class,
         _positive_class_probabilities,
         _resize_and_validate_model_embeddings,
-        _select_binary_f1_threshold,
+        _select_macro_f1_threshold,
         _split_grouped_calibration,
         _validate_flash_attention_environment,
     )
@@ -39,7 +39,7 @@ else:
         _make_weighted_trainer_class,
         _positive_class_probabilities,
         _resize_and_validate_model_embeddings,
-        _select_binary_f1_threshold,
+        _select_macro_f1_threshold,
         _split_grouped_calibration,
         _validate_flash_attention_environment,
     )
@@ -182,7 +182,7 @@ def _compute_metrics(prediction: Any) -> dict[str, float]:
 
 
 def _compute_calibrated_metrics(prediction: Any) -> dict[str, float]:
-    threshold = _select_binary_f1_threshold(
+    threshold = _select_macro_f1_threshold(
         probabilities=_positive_class_probabilities(prediction.predictions),
         labels=prediction.label_ids,
     )
@@ -386,7 +386,7 @@ def train_cross_validated_classifier(
             eval_strategy="epoch",
             save_strategy="epoch",
             load_best_model_at_end=True,
-            metric_for_best_model="f1_following",
+            metric_for_best_model="f1_macro",
             greater_is_better=True,
             learning_rate=learning_rate,
             weight_decay=weight_decay,
@@ -426,7 +426,7 @@ def train_cross_validated_classifier(
         calibration_probabilities = _positive_class_probabilities(
             calibration_output.predictions
         )
-        decision_threshold = _select_binary_f1_threshold(
+        decision_threshold = _select_macro_f1_threshold(
             probabilities=calibration_probabilities,
             labels=calibration_output.label_ids,
         )
@@ -454,7 +454,7 @@ def train_cross_validated_classifier(
         fold_metrics.append(metrics)
         trainer.model.config.decision_threshold = decision_threshold
         trainer.model.config.positive_label = "following"
-        trainer.model.config.threshold_calibration_metric = "f1_following"
+        trainer.model.config.threshold_calibration_metric = "f1_macro"
         best_model_directory = fold_directory / "best_model"
         trainer.save_model(best_model_directory)
         tokenizer.save_pretrained(best_model_directory)
@@ -501,7 +501,8 @@ def train_cross_validated_classifier(
             "deterministic_flash_attention": deterministic_flash_attention,
             "gradient_checkpointing": use_gradient_checkpointing,
             "calibration_fraction": calibration_fraction,
-            "calibration_metric": "f1_following",
+            "calibration_metric": "f1_macro",
+            "model_selection_metric": "f1_macro",
             "use_class_weights": use_class_weights,
             "class_weight_method": "balanced",
             "dynamic_batch_padding": True,

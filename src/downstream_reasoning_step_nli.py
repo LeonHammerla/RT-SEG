@@ -289,7 +289,7 @@ if __name__ == "__main__":
             "rts_aligner": None,
             "rts_label_fusion_type": "concat",
             "rts_base_unit": "sent",
-            "rid": "sentbase5k",
+            "rid": "sentbase5k_v2",
         },
         {
             "rts_engines": [
@@ -298,7 +298,7 @@ if __name__ == "__main__":
             "rts_aligner": None,
             "rts_label_fusion_type": "concat",
             "rts_base_unit": "clause",
-            "rid": "clausebase5k",
+            "rid": "clausebase5k_v2",
         },
         {
             "rts_engines": [
@@ -309,7 +309,7 @@ if __name__ == "__main__":
             "rts_aligner": OffsetFusionGraph,
             "rts_label_fusion_type": "concat",
             "rts_base_unit": "clause",
-            "rid": "complex15k",
+            "rid": "complex15k_v2",
         },
         {
             "rts_engines": [
@@ -321,7 +321,7 @@ if __name__ == "__main__":
             "rts_aligner": OffsetFusionGraph,
             "rts_label_fusion_type": "concat",
             "rts_base_unit": "clause",
-            "rid": "complex25k",
+            "rid": "complex25k_v2",
         }
     ]
 

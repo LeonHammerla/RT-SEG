@@ -10,7 +10,7 @@ from eval_utils.first_error_detect_prm800k import (
     _make_weighted_trainer_class,
     _positive_class_probabilities,
     _resize_and_validate_model_embeddings,
-    _select_binary_f1_threshold,
+    _select_macro_f1_threshold,
     _split_grouped_calibration,
     _validate_flash_attention_environment,
     extract_first_error_samples,
@@ -314,13 +314,24 @@ def test_training_requires_exactly_one_half_precision_dtype() -> None:
         )
 
 
-def test_binary_f1_threshold_is_selected_from_probabilities() -> None:
-    threshold = _select_binary_f1_threshold(
+def test_macro_f1_threshold_is_selected_from_probabilities() -> None:
+    threshold = _select_macro_f1_threshold(
         probabilities=[0.10, 0.40, 0.35, 0.80],
         labels=[0, 0, 1, 1],
     )
 
     assert threshold == pytest.approx(0.35)
+
+
+def test_macro_f1_threshold_does_not_optimize_only_positive_class() -> None:
+    threshold = _select_macro_f1_threshold(
+        probabilities=[0.90, 0.80, 0.70, 0.60, 0.20, 0.10],
+        labels=[1, 0, 0, 0, 1, 1],
+    )
+
+    # Positive-class F1 is maximized by predicting every sample as positive
+    # (threshold 0.10), whereas macro F1 is maximized at threshold 0.90.
+    assert threshold == pytest.approx(0.90)
 
 
 def test_positive_class_probabilities_use_binary_softmax() -> None:
