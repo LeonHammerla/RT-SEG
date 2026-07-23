@@ -76,6 +76,7 @@ def test_main_runs_segmentation_and_training_in_repository_data_directory(
     )
     mocked_load.assert_called_once_with(dataset_path)
     assert mocked_extract.call_args.kwargs["balance_classes"] is False
+    assert mocked_extract.call_args.kwargs["include_rtseg_labels"] is True
     expected_output = (
         Path(downstream_firsterror.__file__).resolve().parents[1]
         / "data"
@@ -84,11 +85,54 @@ def test_main_runs_segmentation_and_training_in_repository_data_directory(
     assert mocked_train.call_args.kwargs["output_directory"] == expected_output
     assert mocked_train.call_args.kwargs["calibration_fraction"] == 0.2
     assert mocked_train.call_args.kwargs["use_class_weights"] is True
+    assert mocked_train.call_args.kwargs["include_rtseg_labels"] is True
     assert result == {
         "rid": "baseline",
         "dataset_path": str(dataset_path),
         "output_directory": str(expected_output),
     }
+
+
+def test_main_forwards_rtseg_label_ablation(tmp_path) -> None:
+    input_dataset = Dataset.from_dict({"reasoning_trace": ["A trace."]})
+    sample_dataset = Dataset.from_dict(
+        {"text": ["sample"], "labels": [1], "source_index": [0]}
+    )
+    dataset_path = tmp_path / "segmented"
+
+    with (
+        patch.object(
+            downstream_firsterror,
+            "create_rtseg_dataset_main",
+            return_value=(input_dataset, dataset_path),
+        ),
+        patch.object(
+            downstream_firsterror,
+            "load_from_disk",
+            return_value=input_dataset,
+        ),
+        patch.object(
+            downstream_firsterror,
+            "extract_first_error_samples",
+            return_value=sample_dataset,
+        ) as mocked_extract,
+        patch.object(
+            downstream_firsterror,
+            "train_cross_validated_classifier",
+        ) as mocked_train,
+    ):
+        downstream_firsterror.main(
+            rtseg_engines=[RTPlainSegmenter],
+            rtseg_aligner=None,
+            rtseg_label_fusion_type="concat",
+            rtseg_base_unit="sent",
+            rid="without-labels",
+            reuse_existing_dataset=False,
+            include_rtseg_labels=False,
+        )
+
+    assert mocked_extract.call_args.kwargs["include_rtseg_labels"] is False
+    assert mocked_train.call_args.kwargs["include_rtseg_labels"] is False
 
 
 def test_main_reuses_existing_dataset_for_requested_top_k(tmp_path) -> None:
@@ -160,6 +204,7 @@ def test_multi_main_can_run_declared_configs_sequentially() -> None:
             use_multiprocessing=False,
             rtseg_top_k=2500,
             balance_classes=True,
+            include_rtseg_labels=False,
         )
 
     assert [result["rid"] for result in results] == [
@@ -182,6 +227,10 @@ def test_multi_main_can_run_declared_configs_sequentially() -> None:
         call.kwargs["balance_classes"] is True
         for call in mocked.call_args_list
     )
+    assert all(
+        call.kwargs["include_rtseg_labels"] is False
+        for call in mocked.call_args_list
+    )
 
 
 def test_multi_main_uses_spawned_processes_and_preserves_config_order() -> None:
@@ -198,12 +247,14 @@ def test_multi_main_uses_spawned_processes_and_preserves_config_order() -> None:
             reuse_existing_dataset,
             rtseg_top_k,
             balance_classes,
+            include_rtseg_labels,
         ):
             self.function = function
             self.config = config
             self.reuse_existing_dataset = reuse_existing_dataset
             self.rtseg_top_k = rtseg_top_k
             self.balance_classes = balance_classes
+            self.include_rtseg_labels = include_rtseg_labels
 
         def result(self):
             return self.function(
@@ -211,6 +262,7 @@ def test_multi_main_uses_spawned_processes_and_preserves_config_order() -> None:
                 self.reuse_existing_dataset,
                 self.rtseg_top_k,
                 self.balance_classes,
+                self.include_rtseg_labels,
             )
 
     class FakeExecutor:
@@ -230,6 +282,7 @@ def test_multi_main_uses_spawned_processes_and_preserves_config_order() -> None:
             reuse_existing_dataset,
             rtseg_top_k,
             balance_classes,
+            include_rtseg_labels,
         ):
             future = FakeFuture(
                 function,
@@ -237,6 +290,7 @@ def test_multi_main_uses_spawned_processes_and_preserves_config_order() -> None:
                 reuse_existing_dataset,
                 rtseg_top_k,
                 balance_classes,
+                include_rtseg_labels,
             )
             submitted.append(future)
             return future
@@ -272,6 +326,7 @@ def test_multi_main_uses_spawned_processes_and_preserves_config_order() -> None:
             reuse_existing_dataset=False,
             rtseg_top_k=2500,
             balance_classes=True,
+            include_rtseg_labels=False,
         )
 
     mocked_context.assert_called_once_with("spawn")
@@ -294,6 +349,10 @@ def test_multi_main_uses_spawned_processes_and_preserves_config_order() -> None:
     )
     assert all(
         call.kwargs["balance_classes"] is True
+        for call in mocked_main.call_args_list
+    )
+    assert all(
+        call.kwargs["include_rtseg_labels"] is False
         for call in mocked_main.call_args_list
     )
 

@@ -50,6 +50,7 @@ def extract_reasoning_step_pair_samples(
     dataset: Dataset,
     fake_per_real: int,
     seed: int,
+    n: int | None = None,
 ) -> Dataset:
     """Create adjacent real pairs and same-trace, non-consecutive fake pairs.
 
@@ -60,6 +61,10 @@ def extract_reasoning_step_pair_samples(
     """
     if fake_per_real <= 0:
         raise ValueError("fake_per_real must be greater than zero.")
+    if n is not None and (
+        isinstance(n, bool) or not isinstance(n, int) or n <= 0
+    ):
+        raise ValueError("n must be a positive integer or None.")
 
     random_generator = random.Random(seed)
     samples: list[dict[str, Any]] = []
@@ -135,11 +140,65 @@ def extract_reasoning_step_pair_samples(
         raise ValueError("The dataset contains no valid fake step pairs.")
 
     random_generator.shuffle(samples)
+    available_sample_count = len(samples)
+    if n is not None:
+        if n > available_sample_count:
+            raise ValueError(
+                f"n ({n}) exceeds the number of available step pairs "
+                f"({available_sample_count})."
+            )
+
+        # Allocate the requested size proportionally by class. Largest
+        # remainders receive any leftover slots, keeping the restriction
+        # deterministic and the original class distribution as close as
+        # possible.
+        indices_by_label = {
+            label: [
+                index
+                for index, sample in enumerate(samples)
+                if sample["labels"] == label
+            ]
+            for label in (0, 1)
+        }
+        exact_targets = {
+            label: n * len(indices) / available_sample_count
+            for label, indices in indices_by_label.items()
+        }
+        class_targets = {
+            label: int(exact_target)
+            for label, exact_target in exact_targets.items()
+        }
+        remaining = n - sum(class_targets.values())
+        remainder_order = sorted(
+            indices_by_label,
+            key=lambda label: (
+                exact_targets[label] - class_targets[label],
+                len(indices_by_label[label]),
+                label,
+            ),
+            reverse=True,
+        )
+        for label in remainder_order[:remaining]:
+            class_targets[label] += 1
+
+        selected_indices = [
+            index
+            for label, indices in indices_by_label.items()
+            for index in indices[: class_targets[label]]
+        ]
+        random_generator.shuffle(selected_indices)
+        samples = [samples[index] for index in selected_indices]
+
     sample_dataset = Dataset.from_list(samples)
     print(
         f"Prepared {len(sample_dataset)} pairs from {len(dataset)} traces; "
         f"skipped {skipped_short_traces} traces with fewer than two steps."
     )
+    if n is not None:
+        print(
+            f"Restricted the training dataset to {n} of "
+            f"{available_sample_count} available pairs."
+        )
     print(
         f"Following pairs: {sample_dataset['labels'].count(1)}, "
         f"not-following pairs: {sample_dataset['labels'].count(0)}; "

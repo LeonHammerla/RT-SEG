@@ -97,6 +97,43 @@ def test_extract_step_pairs_is_seeded() -> None:
     assert first.to_dict() == second.to_dict()
 
 
+def test_extract_step_pairs_can_limit_dataset_size_deterministically() -> None:
+    kwargs = {
+        "dataset": _dataset(),
+        "fake_per_real": 1,
+        "seed": 17,
+        "n": 4,
+    }
+    first = extract_reasoning_step_pair_samples(**kwargs)
+    second = extract_reasoning_step_pair_samples(**kwargs)
+
+    assert len(first) == 4
+    assert first["labels"].count(0) == 2
+    assert first["labels"].count(1) == 2
+    assert first.to_dict() == second.to_dict()
+
+
+@pytest.mark.parametrize("n", [0, -1, 1.5, True])
+def test_extract_step_pairs_rejects_invalid_limit(n) -> None:
+    with pytest.raises(ValueError, match="positive integer or None"):
+        extract_reasoning_step_pair_samples(
+            dataset=_dataset(),
+            fake_per_real=1,
+            seed=17,
+            n=n,
+        )
+
+
+def test_extract_step_pairs_rejects_limit_larger_than_dataset() -> None:
+    with pytest.raises(ValueError, match="exceeds"):
+        extract_reasoning_step_pair_samples(
+            dataset=_dataset(),
+            fake_per_real=1,
+            seed=17,
+            n=7,
+        )
+
+
 def test_extract_step_pairs_rejects_misaligned_metadata() -> None:
     dataset = Dataset.from_list(
         [

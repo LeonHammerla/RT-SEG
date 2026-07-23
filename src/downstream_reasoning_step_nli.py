@@ -33,6 +33,8 @@ def main(
     *,
     rtseg_top_k: int = 1000,
     reuse_existing_dataset: bool = True,
+    include_rtseg_labels: bool = True,
+    n: int | None = None,
 ) -> dict[str, str]:
     dataset_path = get_rtseg_dataset_path(
         rtseg_engines=rtseg_engines,
@@ -73,7 +75,6 @@ def main(
     use_gradient_checkpointing = True
     calibration_fraction = 0.2
     use_class_weights = True
-    include_rtseg_labels = True
     step_special_token = "[STEP]"
     rtseg_label_special_token = "[RTSEG_LABEL]"
 
@@ -85,6 +86,7 @@ def main(
         dataset=input_dataset,
         fake_per_real=fake_per_real,
         seed=random_seed,
+        n=n,
     )
     train_cross_validated_classifier(
         sample_dataset=extracted_samples,
@@ -205,6 +207,8 @@ def _run_config(
     config: Mapping[str, Any],
     reuse_existing_dataset: bool = True,
     rtseg_top_k: int = 1000,
+    include_rtseg_labels: bool = True,
+    n: int | None = None,
 ) -> dict[str, str]:
     rid = config["rid"]
     print(f"[{rid}] Starting downstream reasoning-step NLI run.", flush=True)
@@ -216,6 +220,8 @@ def _run_config(
         rid=rid,
         rtseg_top_k=rtseg_top_k,
         reuse_existing_dataset=reuse_existing_dataset,
+        include_rtseg_labels=include_rtseg_labels,
+        n=n,
     )
     print(f"[{rid}] Completed downstream reasoning-step NLI run.", flush=True)
     return result
@@ -228,6 +234,8 @@ def multi_main(
     max_workers: int | None = 8,
     reuse_existing_dataset: bool = True,
     rtseg_top_k: int = 1000,
+    include_rtseg_labels: bool = True,
+    n: int | None = None,
 ) -> list[dict[str, str]]:
     """Run every declared RT-SEG configuration sequentially or in parallel."""
     normalized_configs = _validate_configs(
@@ -237,7 +245,13 @@ def multi_main(
 
     if not use_multiprocessing:
         return [
-            _run_config(config, reuse_existing_dataset, rtseg_top_k)
+            _run_config(
+                config,
+                reuse_existing_dataset,
+                rtseg_top_k,
+                include_rtseg_labels,
+                n,
+            )
             for config in normalized_configs
         ]
 
@@ -259,6 +273,8 @@ def multi_main(
                 config,
                 reuse_existing_dataset,
                 rtseg_top_k,
+                include_rtseg_labels,
+                n,
             ): config["rid"]
             for config in normalized_configs
         }

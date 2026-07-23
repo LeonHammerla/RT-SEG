@@ -38,6 +38,7 @@ def _build_prefix_sequence(
     step_texts: Sequence[str],
     trace_labels: Sequence[str],
     target_index: int,
+    include_rtseg_labels: bool,
     step_token: str,
     trace_label_token: str,
 ) -> str:
@@ -47,7 +48,9 @@ def _build_prefix_sequence(
         trace_labels[: target_index + 1],
         strict=True,
     ):
-        parts.extend((step_token, step_text, trace_label_token, str(trace_label)))
+        parts.extend((step_token, step_text))
+        if include_rtseg_labels:
+            parts.extend((trace_label_token, str(trace_label)))
     return " ".join(parts)
 
 
@@ -61,6 +64,7 @@ def extract_first_error_samples(
     correct_step_label: str,
     error_step_label: str,
     balance_classes: bool = False,
+    include_rtseg_labels: bool = True,
 ) -> Dataset:
     """Create error prefixes and select correct prefixes globally.
 
@@ -111,6 +115,7 @@ def extract_first_error_samples(
                     step_texts=step_texts,
                     trace_labels=trace_labels,
                     target_index=target_index,
+                    include_rtseg_labels=include_rtseg_labels,
                     step_token=step_token,
                     trace_label_token=trace_label_token,
                 ),
@@ -552,6 +557,7 @@ def train_cross_validated_classifier(
     use_gradient_checkpointing: bool,
     calibration_fraction: float = 0.2,
     use_class_weights: bool = True,
+    include_rtseg_labels: bool = True,
 ) -> dict[str, Any]:
     """Fine-tune with nested grouped calibration inside grouped n-fold CV."""
     from transformers import (
@@ -586,9 +592,12 @@ def train_cross_validated_classifier(
     sample_dataset.save_to_disk(prepared_dataset_path)
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
+    special_tokens = [step_token]
+    if include_rtseg_labels:
+        special_tokens.append(trace_label_token)
     tokenizer_validation = _add_and_validate_special_tokens(
         tokenizer=tokenizer,
-        special_tokens=[step_token, trace_label_token],
+        special_tokens=special_tokens,
     )
     tokenizer.truncation_side = "left"
     model_config = AutoConfig.from_pretrained(model_name)
@@ -797,6 +806,7 @@ def train_cross_validated_classifier(
             "use_class_weights": use_class_weights,
             "class_weight_method": "balanced",
             "dynamic_batch_padding": True,
+            "include_rtseg_labels": include_rtseg_labels,
             "step_token": step_token,
             "trace_label_token": trace_label_token,
         },

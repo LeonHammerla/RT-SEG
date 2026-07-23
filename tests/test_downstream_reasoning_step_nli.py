@@ -62,6 +62,7 @@ def test_main_runs_segmentation_and_reasoning_step_nli_training(tmp_path) -> Non
         dataset=input_dataset,
         fake_per_real=1,
         seed=42,
+        n=None,
     )
     expected_output = (
         Path(downstream_reasoning_step_nli.__file__).resolve().parents[1]
@@ -79,6 +80,54 @@ def test_main_runs_segmentation_and_reasoning_step_nli_training(tmp_path) -> Non
         "dataset_path": str(dataset_path),
         "output_directory": str(expected_output),
     }
+
+
+def test_main_forwards_rtseg_label_ablation_and_sample_limit(tmp_path) -> None:
+    input_dataset = Dataset.from_dict({"reasoning_trace": ["A trace."]})
+    sample_dataset = Dataset.from_dict(
+        {
+            "premise": ["first"],
+            "hypothesis": ["second"],
+            "labels": [1],
+            "source_index": [0],
+        }
+    )
+    dataset_path = tmp_path / "segmented"
+
+    with (
+        patch.object(
+            downstream_reasoning_step_nli,
+            "create_rtseg_dataset_main",
+            return_value=(input_dataset, dataset_path),
+        ),
+        patch.object(
+            downstream_reasoning_step_nli,
+            "load_from_disk",
+            return_value=input_dataset,
+        ),
+        patch.object(
+            downstream_reasoning_step_nli,
+            "extract_reasoning_step_pair_samples",
+            return_value=sample_dataset,
+        ) as mocked_extract,
+        patch.object(
+            downstream_reasoning_step_nli,
+            "train_cross_validated_classifier",
+        ) as mocked_train,
+    ):
+        downstream_reasoning_step_nli.main(
+            rtseg_engines=[RTPlainSegmenter],
+            rtseg_aligner=None,
+            rtseg_label_fusion_type="concat",
+            rtseg_base_unit="sent",
+            rid="without-labels",
+            reuse_existing_dataset=False,
+            include_rtseg_labels=False,
+            n=100,
+        )
+
+    assert mocked_extract.call_args.kwargs["n"] == 100
+    assert mocked_train.call_args.kwargs["include_rtseg_labels"] is False
 
 
 def test_main_reuses_existing_dataset_for_requested_top_k(tmp_path) -> None:
@@ -173,6 +222,8 @@ def test_multi_main_can_run_declared_configs_sequentially() -> None:
             configs,
             use_multiprocessing=False,
             rtseg_top_k=2500,
+            include_rtseg_labels=False,
+            n=100,
         )
 
     assert [result["rid"] for result in results] == [
@@ -191,3 +242,8 @@ def test_multi_main_can_run_declared_configs_sequentially() -> None:
         call.kwargs["rtseg_top_k"] == 2500
         for call in mocked.call_args_list
     )
+    assert all(
+        call.kwargs["include_rtseg_labels"] is False
+        for call in mocked.call_args_list
+    )
+    assert all(call.kwargs["n"] == 100 for call in mocked.call_args_list)

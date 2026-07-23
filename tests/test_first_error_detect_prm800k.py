@@ -53,6 +53,26 @@ def test_extract_first_error_samples_builds_prefix_sequences() -> None:
     assert error_sample["target_step_index"] == 2
 
 
+def test_extract_first_error_samples_can_exclude_rtseg_labels() -> None:
+    result = extract_first_error_samples(
+        dataset=_dataset(),
+        correct_per_error=2,
+        seed=7,
+        step_token="[STEP]",
+        trace_label_token="[LABEL]",
+        correct_step_label="0",
+        error_step_label="-1",
+        include_rtseg_labels=False,
+    )
+
+    error_sample = result.filter(lambda row: row["labels"] == 1)[0]
+    assert error_sample["text"] == (
+        "[STEP] first [STEP] second [STEP] third"
+    )
+    assert "[LABEL]" not in error_sample["text"]
+    assert "mistake" not in error_sample["text"]
+
+
 def test_extract_first_error_samples_is_seeded() -> None:
     dataset = Dataset.from_list(
         [

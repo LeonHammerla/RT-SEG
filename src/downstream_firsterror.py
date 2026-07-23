@@ -34,6 +34,7 @@ def main(
     rtseg_top_k: int = 1000,
     reuse_existing_dataset: bool = True,
     balance_classes: bool = False,
+    include_rtseg_labels: bool = True,
 ) -> dict[str, str]:
     dataset_path = get_rtseg_dataset_path(
         rtseg_engines=rtseg_engines,
@@ -92,6 +93,7 @@ def main(
         correct_step_label=correct_rating,
         error_step_label=first_error_rating,
         balance_classes=balance_classes,
+        include_rtseg_labels=include_rtseg_labels,
     )
     train_cross_validated_classifier(
         sample_dataset=extracted_samples,
@@ -116,6 +118,7 @@ def main(
         use_gradient_checkpointing=use_gradient_checkpointing,
         calibration_fraction=calibration_fraction,
         use_class_weights=use_class_weights,
+        include_rtseg_labels=include_rtseg_labels,
     )
     return {
         "rid": rid,
@@ -212,6 +215,7 @@ def _run_config(
     reuse_existing_dataset: bool = True,
     rtseg_top_k: int = 1000,
     balance_classes: bool = False,
+    include_rtseg_labels: bool = True,
 ) -> dict[str, str]:
     rid = config["rid"]
     print(f"[{rid}] Starting downstream first-error run.", flush=True)
@@ -224,6 +228,7 @@ def _run_config(
         rtseg_top_k=rtseg_top_k,
         reuse_existing_dataset=reuse_existing_dataset,
         balance_classes=balance_classes,
+        include_rtseg_labels=include_rtseg_labels,
     )
     print(f"[{rid}] Completed downstream first-error run.", flush=True)
     return result
@@ -237,6 +242,7 @@ def multi_main(
     reuse_existing_dataset: bool = True,
     rtseg_top_k: int = 1000,
     balance_classes: bool = False,
+    include_rtseg_labels: bool = True,
 ) -> list[dict[str, str]]:
     """Run every declared RT-SEG configuration sequentially or in parallel."""
     normalized_configs = _validate_configs(
@@ -251,6 +257,7 @@ def multi_main(
                 reuse_existing_dataset,
                 rtseg_top_k,
                 balance_classes,
+                include_rtseg_labels,
             )
             for config in normalized_configs
         ]
@@ -274,6 +281,7 @@ def multi_main(
                 reuse_existing_dataset,
                 rtseg_top_k,
                 balance_classes,
+                include_rtseg_labels,
             ): config["rid"]
             for config in normalized_configs
         }
